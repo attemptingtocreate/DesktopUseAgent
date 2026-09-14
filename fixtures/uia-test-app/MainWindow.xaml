@@ -1,0 +1,104 @@
+﻿<Window x:Class="UiaTestApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="SemanticDesktop UIA Fixture"
+        Height="720" Width="980"
+        AutomationProperties.AutomationId="FixtureMainWindow">
+  <DockPanel Margin="12">
+    <Menu DockPanel.Dock="Top" AutomationProperties.AutomationId="MainMenu">
+      <MenuItem Header="_File" AutomationProperties.AutomationId="MenuFile">
+        <MenuItem Header="_Open Dialog" Click="OpenDialog_Click" AutomationProperties.AutomationId="MenuOpenDialog"/>
+        <MenuItem Header="E_xit" Click="Exit_Click" AutomationProperties.AutomationId="MenuExit"/>
+      </MenuItem>
+    </Menu>
+
+    <StatusBar DockPanel.Dock="Bottom" AutomationProperties.AutomationId="StatusBar">
+      <StatusBarItem>
+        <TextBlock x:Name="StatusText" Text="Ready" AutomationProperties.AutomationId="StatusText"/>
+      </StatusBarItem>
+    </StatusBar>
+
+    <TabControl AutomationProperties.AutomationId="MainTabs">
+      <TabItem Header="Controls" AutomationProperties.AutomationId="TabControls">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" AutomationProperties.AutomationId="ControlsScroll">
+          <StackPanel Margin="8">
+            <TextBlock Text="Buttons" FontWeight="Bold"/>
+            <StackPanel Orientation="Horizontal">
+              <Button Content="Primary" Width="100" Margin="0,0,8,8"
+                      Click="PrimaryButton_Click"
+                      AutomationProperties.AutomationId="PrimaryButton"/>
+              <Button Content="Disabled" Width="100" Margin="0,0,8,8" IsEnabled="False"
+                      AutomationProperties.AutomationId="DisabledButton"/>
+            </StackPanel>
+
+            <TextBlock Text="Text" FontWeight="Bold"/>
+            <TextBox x:Name="NameBox" Width="280" HorizontalAlignment="Left" Margin="0,0,0,8"
+                     AutomationProperties.AutomationId="NameBox"/>
+            <PasswordBox Width="280" HorizontalAlignment="Left" Margin="0,0,0,8"
+                         AutomationProperties.AutomationId="SecretBox"/>
+            <TextBox x:Name="MultiLineBox" AcceptsReturn="True" Height="80" Width="420"
+                     HorizontalAlignment="Left" TextWrapping="Wrap" Margin="0,0,0,8"
+                     AutomationProperties.AutomationId="MultiLineBox"/>
+
+            <TextBlock Text="Choices" FontWeight="Bold"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+              <CheckBox x:Name="AgreeCheck" Content="Agree" Margin="0,0,12,0"
+                        AutomationProperties.AutomationId="AgreeCheck"/>
+              <RadioButton Content="Alpha" GroupName="Choice" IsChecked="True" Margin="0,0,12,0"
+                           AutomationProperties.AutomationId="RadioAlpha"/>
+              <RadioButton Content="Beta" GroupName="Choice"
+                           AutomationProperties.AutomationId="RadioBeta"/>
+            </StackPanel>
+
+            <ComboBox x:Name="ColorCombo" Width="200" HorizontalAlignment="Left" Margin="0,0,0,8"
+                      AutomationProperties.AutomationId="ColorCombo">
+              <ComboBoxItem Content="Red"/>
+              <ComboBoxItem Content="Green"/>
+              <ComboBoxItem Content="Blue"/>
+            </ComboBox>
+
+            <ListBox x:Name="FruitList" Height="90" Width="200" HorizontalAlignment="Left" Margin="0,0,0,8"
+                     AutomationProperties.AutomationId="FruitList">
+              <ListBoxItem Content="Apple"/>
+              <ListBoxItem Content="Banana"/>
+              <ListBoxItem Content="Cherry"/>
+            </ListBox>
+
+            <TreeView Width="220" Height="120" HorizontalAlignment="Left" Margin="0,0,0,8"
+                      AutomationProperties.AutomationId="SampleTree">
+              <TreeViewItem Header="Root" IsExpanded="True" AutomationProperties.AutomationId="TreeRoot">
+                <TreeViewItem Header="Child A" AutomationProperties.AutomationId="TreeChildA"/>
+                <TreeViewItem Header="Child B" AutomationProperties.AutomationId="TreeChildB"/>
+              </TreeViewItem>
+            </TreeView>
+
+            <ProgressBar Value="42" Height="16" Width="280" HorizontalAlignment="Left" Margin="0,0,0,8"
+                         AutomationProperties.AutomationId="ProgressSample"/>
+
+            <Button Content="Add Dynamic Control" Width="180" HorizontalAlignment="Left" Margin="0,0,0,8"
+                    Click="AddDynamic_Click" AutomationProperties.AutomationId="AddDynamicButton"/>
+            <StackPanel x:Name="DynamicHost" AutomationProperties.AutomationId="DynamicHost"/>
+
+            <Button Content="Show Delayed Control" Width="180" HorizontalAlignment="Left" Margin="0,0,0,8"
+                    Click="ShowDelayed_Click" AutomationProperties.AutomationId="ShowDelayedButton"/>
+            <StackPanel x:Name="DelayedHost" AutomationProperties.AutomationId="DelayedHost"/>
+
+            <TextBlock x:Name="ResultText" Margin="0,12,0,0" Text="Result: none"
+                       AutomationProperties.AutomationId="ResultText"/>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+      <TabItem Header="Nested" AutomationProperties.AutomationId="TabNested">
+        <Border Padding="12">
+          <GroupBox Header="Outer" AutomationProperties.AutomationId="OuterGroup">
+            <GroupBox Header="Inner" Margin="8" AutomationProperties.AutomationId="InnerGroup">
+              <Button Content="Nested Action" Width="140" HorizontalAlignment="Left"
+                      Click="NestedAction_Click"
+                      AutomationProperties.AutomationId="NestedActionButton"/>
+            </GroupBox>
+          </GroupBox>
+        </Border>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</Window>

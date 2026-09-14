@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>SemanticDesktop.Cli</RootNamespace>
+    <AssemblyName>semantic-desktop</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SemanticDesktop.Core\SemanticDesktop.Core.csproj" />
+    <ProjectReference Include="..\SemanticDesktop.IPC\SemanticDesktop.IPC.csproj" />
+  </ItemGroup>
+</Project>
