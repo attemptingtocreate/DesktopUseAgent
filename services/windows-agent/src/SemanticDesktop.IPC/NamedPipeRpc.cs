@@ -8,6 +8,28 @@ namespace SemanticDesktop.IPC;
 public static class PipeNames
 {
     public const string Default = "semantic-desktop-agent";
+
+    public static string Resolve(string? explicitName = null)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitName))
+        {
+            return explicitName.Trim();
+        }
+
+        var desktopUse = Environment.GetEnvironmentVariable("DESKTOPUSEAGENT_PIPE");
+        if (!string.IsNullOrWhiteSpace(desktopUse))
+        {
+            return desktopUse.Trim();
+        }
+
+        var legacy = Environment.GetEnvironmentVariable("SEMANTIC_DESKTOP_PIPE");
+        if (!string.IsNullOrWhiteSpace(legacy))
+        {
+            return legacy.Trim();
+        }
+
+        return Default;
+    }
 }
 
 public sealed class RpcRequest

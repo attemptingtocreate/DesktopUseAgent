@@ -14,17 +14,19 @@ public sealed class SessionManager
         {
             SessionId = defaultId,
             ClientId = clientId,
-            AutoApproveAsk = true
+            AutoApproveAsk = true,
+            ApprovalTimeout = TimeSpan.FromSeconds(30)
         });
     }
 
-    public AgentSession Create(string clientId, bool autoApproveAsk = false)
+    public AgentSession Create(string clientId, bool autoApproveAsk = false, TimeSpan? approvalTimeout = null)
     {
         var session = new AgentSession
         {
             SessionId = "sess_" + Guid.NewGuid().ToString("N")[..12],
             ClientId = clientId,
-            AutoApproveAsk = autoApproveAsk
+            AutoApproveAsk = autoApproveAsk,
+            ApprovalTimeout = approvalTimeout ?? TimeSpan.FromSeconds(30)
         };
         _sessions[session.SessionId] = session;
         return session;

@@ -4,6 +4,7 @@
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>SemanticDesktop.ControlCenter</RootNamespace>
+    <AssemblyName>DesktopUseAgent</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Platforms>x64;AnyCPU</Platforms>
     <PlatformTarget Condition="'$(Platform)' == 'AnyCPU' or '$(Platform)' == ''">x64</PlatformTarget>
@@ -25,6 +26,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\SemanticDesktop.ControlCenter.Client\SemanticDesktop.ControlCenter.Client.csproj" />
+    <ProjectReference Include="..\SemanticDesktop.App\SemanticDesktop.App.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="$(ApplicationManifest)" />

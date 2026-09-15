@@ -3,7 +3,7 @@
     x:Class="SemanticDesktop.ControlCenter.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="Semantic Desktop Control Center">
+    Title="DesktopUseAgent">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -11,18 +11,21 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="#1B1F24" Padding="16,10">
+        <Border Grid.Row="0" Background="#111418" Padding="16,10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                    <TextBlock Text="Semantic Desktop" FontSize="18" FontWeight="SemiBold" Foreground="White" />
-                    <TextBlock x:Name="StatusText" Text="Connecting…" Foreground="#A8B3C0" VerticalAlignment="Center" />
+                <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+                    <TextBlock Text="DesktopUseAgent" FontSize="18" FontWeight="SemiBold" Foreground="White" />
+                    <TextBlock x:Name="StatusText" Text="Starting…" Foreground="#9AA4B2" VerticalAlignment="Center" />
                 </StackPanel>
-                <Button Grid.Column="1" Content="Refresh" Click="Refresh_Click" Margin="0,0,8,0" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,0,8,0">
+                    <TextBlock x:Name="TaskStatusText" Text="" Foreground="#D0D7DE" VerticalAlignment="Center" />
+                    <Button x:Name="StopTaskButton" Content="Stop" Click="StopTask_Click" Visibility="Collapsed" />
+                </StackPanel>
                 <Button Grid.Column="2" x:Name="EmergencyButton" Content="EMERGENCY STOP"
                         Click="Emergency_Click" Background="#B42318" Foreground="White"
                         KeyboardAcceleratorPlacementMode="Hidden">
@@ -39,19 +42,119 @@
             PaneDisplayMode="Left"
             IsSettingsVisible="False"
             IsBackButtonVisible="Collapsed"
+            OpenPaneLength="196"
+            CompactPaneLength="48"
             SelectionChanged="Nav_SelectionChanged">
             <NavigationView.MenuItems>
-                <NavigationViewItem Content="Dashboard" Tag="dashboard" IsSelected="True" />
-                <NavigationViewItem Content="Live Activity" Tag="activity" />
+                <NavigationViewItem Content="Chat" Tag="chat" IsSelected="True" />
+                <NavigationViewItem Content="Agents" Tag="agents" />
+                <NavigationViewItem Content="MCPs" Tag="mcps" />
+                <NavigationViewItem Content="Activity" Tag="activity" />
                 <NavigationViewItem Content="Permissions" Tag="permissions" />
-                <NavigationViewItem Content="Connections" Tag="connections" />
-                <NavigationViewItem Content="Logs" Tag="logs" />
-                <NavigationViewItem Content="Inspector" Tag="inspector" />
                 <NavigationViewItem Content="Settings" Tag="settings" />
             </NavigationView.MenuItems>
-            <ScrollViewer Padding="20">
-                <StackPanel x:Name="ContentHost" Spacing="12" />
-            </ScrollViewer>
+            <NavigationView.FooterMenuItems>
+                <NavigationViewItem Content="Inspector" Tag="inspector" />
+                <NavigationViewItem Content="Logs" Tag="logs" />
+            </NavigationView.FooterMenuItems>
+
+            <Grid>
+                <Grid x:Name="ChatRoot">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="280" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Background="#F4F6F8" BorderBrush="#E4E7EC" BorderThickness="0,0,1,0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Button x:Name="NewChatButton" Content="New Chat" Margin="12" HorizontalAlignment="Stretch" Click="NewChat_Click" />
+                            <ListView x:Name="ConversationList" Grid.Row="1" SelectionChanged="ConversationList_SelectionChanged" />
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Column="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Border Padding="16,10" BorderBrush="#E4E7EC" BorderThickness="0,0,0,1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Agent" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <ComboBox x:Name="AgentSelector" Grid.Column="1" MinWidth="260" SelectionChanged="AgentSelector_SelectionChanged" />
+                                <TextBlock x:Name="ComputerStatusText" Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="#667085" />
+                            </Grid>
+                        </Border>
+
+                        <Border x:Name="LiveTaskBar" Grid.Row="1" Background="#EEF4FF" Padding="16,10" Visibility="Collapsed">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Working on your computer…" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="CurrentActionText" Text="Current action: —" />
+                                    <TextBlock x:Name="ActionsCompletedText" Text="Actions completed: 0" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="Stop" Click="StopTask_Click" />
+                            </Grid>
+                        </Border>
+
+                        <ScrollViewer x:Name="ChatScroller" Grid.Row="2" Padding="20">
+                            <StackPanel x:Name="MessagesHost" Spacing="12" />
+                        </ScrollViewer>
+
+                        <Border x:Name="ApprovalBar" Grid.Row="3" Background="#FFF6ED" Padding="16" Visibility="Collapsed">
+                            <StackPanel Spacing="8">
+                                <TextBlock x:Name="ApprovalText" Text="DesktopUseAgent wants to run an action." TextWrapping="Wrap" FontWeight="SemiBold" />
+                                <TextBlock x:Name="ApprovalDetail" Text="" TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="View command" Click="ViewApproval_Click" />
+                                    <Button Content="Deny" Click="DenyChatApproval_Click" />
+                                    <Button Content="Allow once" Click="AllowChatApproval_Click" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Row="4" Padding="12,10" BorderBrush="#E4E7EC" BorderThickness="0,1,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="Composer"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         MinHeight="56"
+                                         MaxHeight="140"
+                                         PlaceholderText="Message DesktopUseAgent…"
+                                         KeyDown="Composer_KeyDown" />
+                                <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Bottom" Spacing="6">
+                                    <Button Content="Send" Click="Send_Click" />
+                                    <Button Content="Retry" Click="Retry_Click" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+
+                <ScrollViewer x:Name="PageScroller" Padding="20" Visibility="Collapsed">
+                    <StackPanel x:Name="ContentHost" Spacing="12" />
+                </ScrollViewer>
+            </Grid>
         </NavigationView>
     </Grid>
 </Window>

@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>SemanticDesktop.Cli</RootNamespace>
+    <!-- Keep semantic-desktop.exe so existing scripts keep working. -->
     <AssemblyName>semantic-desktop</AssemblyName>
   </PropertyGroup>
   <ItemGroup>

@@ -52,9 +52,21 @@ public sealed class ProductionRuntime
         return new ProductionRuntime(dataRoot, state, engine, audit, lastCrash);
     }
 
-    public static string DefaultRoot =>
-        Environment.GetEnvironmentVariable("SEMANTIC_DESKTOP_DATA")
-        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SemanticDesktop");
+    public static string DefaultRoot
+    {
+        get
+        {
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var neu = Path.Combine(localAppData, DataRootResolver.ProductFolder);
+            var legacy = Path.Combine(localAppData, DataRootResolver.LegacyProductFolder);
+            return DataRootResolver.ResolveDataRoot(
+                Environment.GetEnvironmentVariable("DESKTOPUSEAGENT_DATA"),
+                Environment.GetEnvironmentVariable("SEMANTIC_DESKTOP_DATA"),
+                localAppData,
+                Directory.Exists(neu),
+                Directory.Exists(legacy));
+        }
+    }
 
     public void SavePolicy()
     {

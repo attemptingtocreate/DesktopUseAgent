@@ -54,6 +54,7 @@ public sealed class AgentSession
     public required string ClientId { get; init; }
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
     public bool AutoApproveAsk { get; set; }
+    public TimeSpan ApprovalTimeout { get; set; } = TimeSpan.FromSeconds(30);
     public Dictionary<string, PermissionDecisionKind> CapabilityOverrides { get; } = new(StringComparer.OrdinalIgnoreCase);
     public HashSet<string> SessionGrants { get; } = new(StringComparer.OrdinalIgnoreCase);
 }

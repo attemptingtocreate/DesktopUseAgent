@@ -4,13 +4,13 @@ using SemanticDesktop.Core.Commands;
 using SemanticDesktop.Core.Serialization;
 using SemanticDesktop.IPC;
 
-var pipeName = PipeNames.Default;
+var pipeName = PipeNames.Resolve();
 var commandArgs = args.ToList();
 for (var i = 0; i < commandArgs.Count; i++)
 {
     if (commandArgs[i].StartsWith("--pipe=", StringComparison.OrdinalIgnoreCase))
     {
-        pipeName = commandArgs[i]["--pipe=".Length..];
+        pipeName = PipeNames.Resolve(commandArgs[i]["--pipe=".Length..]);
         commandArgs.RemoveAt(i);
         break;
     }
@@ -45,7 +45,7 @@ catch (Exception ex)
 static async Task<int> RunAgentHostAsync(string pipeName)
 {
     var agentDll = FindAgentDll()
-                   ?? throw new FileNotFoundException("SemanticDesktop.Agent.dll not found. Build the solution.");
+                   ?? throw new FileNotFoundException("DesktopUseAgent.Agent.dll not found. Build the solution.");
     var psi = new ProcessStartInfo("dotnet", $"\"{agentDll}\" --pipe={pipeName}")
     {
         UseShellExecute = false
@@ -68,7 +68,7 @@ static async Task EnsureAgentAsync(string pipeName)
     }
 
     var agentDll = FindAgentDll()
-                   ?? throw new FileNotFoundException("SemanticDesktop.Agent.dll not found. Build the solution.");
+                   ?? throw new FileNotFoundException("DesktopUseAgent.Agent.dll not found. Build the solution.");
 
     var psi = new ProcessStartInfo("dotnet", $"\"{agentDll}\" --pipe={pipeName}")
     {
@@ -88,7 +88,7 @@ static async Task EnsureAgentAsync(string pipeName)
         await Task.Delay(100).ConfigureAwait(false);
     }
 
-    throw new TimeoutException("Timed out waiting for SemanticDesktop agent pipe.");
+    throw new TimeoutException("Timed out waiting for DesktopUseAgent agent pipe.");
 }
 
 static async Task<bool> PingAsync(string pipeName, int timeoutMs)
@@ -109,13 +109,26 @@ static async Task<bool> PingAsync(string pipeName, int timeoutMs)
 
 static string? FindAgentDll()
 {
-    var candidates = new[]
+    var names = new[] { "DesktopUseAgent.Agent.dll", "SemanticDesktop.Agent.dll" };
+    var searchDirs = new[]
     {
-        Path.Combine(AppContext.BaseDirectory, "SemanticDesktop.Agent.dll"),
-        Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "SemanticDesktop.Agent", "bin", "Debug", "net8.0-windows", "SemanticDesktop.Agent.dll")),
-        Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "SemanticDesktop.Agent", "bin", "Release", "net8.0-windows", "SemanticDesktop.Agent.dll"))
+        AppContext.BaseDirectory,
+        Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "SemanticDesktop.Agent", "bin", "Debug", "net8.0-windows")),
+        Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "SemanticDesktop.Agent", "bin", "Release", "net8.0-windows"))
     };
-    return candidates.FirstOrDefault(File.Exists);
+    foreach (var dir in searchDirs)
+    {
+        foreach (var name in names)
+        {
+            var path = Path.Combine(dir, name);
+            if (File.Exists(path))
+            {
+                return path;
+            }
+        }
+    }
+
+    return null;
 }
 
 static async Task DispatchClientCommandAsync(NamedPipeClient client, string command, List<string> commandArgs)
@@ -239,13 +252,13 @@ static object BuildPlanParams(List<string> commandArgs)
             {
                 id = "set-text",
                 action = "ui.set_value",
-                args = new { targetFrom = "find-editor", value = "Hello from Semantic Desktop" }
+                args = new { targetFrom = "find-editor", value = "Hello from DesktopUseAgent" }
             },
             new
             {
                 id = "save",
                 action = "filesystem.write_text",
-                args = new { path = savePath, contents = "Hello from Semantic Desktop" },
+                args = new { path = savePath, contents = "Hello from DesktopUseAgent" },
                 waitAfter = new { type = "file.exists", path = savePath, timeoutMs = 5000 }
             }
         }
@@ -381,7 +394,7 @@ static void PrintJson(JsonElement result)
 static void PrintHelp()
 {
     Console.WriteLine("""
-        semantic-desktop — Phase 1/2 CLI
+        DesktopUseAgent CLI (semantic-desktop)
 
         Commands:
           agent

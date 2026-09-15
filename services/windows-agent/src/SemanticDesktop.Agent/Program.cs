@@ -2,8 +2,8 @@
 using SemanticDesktop.Core.Production;
 using SemanticDesktop.IPC;
 
-var pipeName = args.FirstOrDefault(a => a.StartsWith("--pipe=", StringComparison.OrdinalIgnoreCase))?["--pipe=".Length..]
-               ?? PipeNames.Default;
+var pipeName = PipeNames.Resolve(
+    args.FirstOrDefault(a => a.StartsWith("--pipe=", StringComparison.OrdinalIgnoreCase))?["--pipe=".Length..]);
 var dataRoot = args.FirstOrDefault(a => a.StartsWith("--data=", StringComparison.OrdinalIgnoreCase))?["--data=".Length..]
                ?? ProductionRuntime.DefaultRoot;
 
@@ -62,7 +62,7 @@ await using var server = new NamedPipeServer(pipeName, async (request, ct) =>
 });
 server.Start();
 
-Console.WriteLine($"SemanticDesktop agent {RuntimeCompat.ApiVersion} listening on pipe '{pipeName}'.");
+Console.WriteLine($"DesktopUseAgent agent {RuntimeCompat.ApiVersion} listening on pipe '{pipeName}'.");
 Console.WriteLine("Press Ctrl+C to exit.");
 
 var exit = new TaskCompletionSource();

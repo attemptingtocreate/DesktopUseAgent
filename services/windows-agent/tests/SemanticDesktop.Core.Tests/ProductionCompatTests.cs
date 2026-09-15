@@ -35,4 +35,52 @@ public class ProductionCompatTests
         Assert.False(StateMigrator.IsNewer("1.12.0", "1.12.0"));
         Assert.False(StateMigrator.IsNewer("1.11.0", "1.12.0"));
     }
+
+    [Fact]
+    public void RuntimeCompat_KeepsProductId_AndExposesDisplayName()
+    {
+        Assert.Equal("SemanticDesktop", RuntimeCompat.Product);
+        Assert.Equal("SemanticDesktop", RuntimeCompat.LegacyProduct);
+        Assert.Equal("DesktopUseAgent", RuntimeCompat.ProductDisplayName);
+        Assert.Equal("1.12.0", RuntimeCompat.ApiVersion);
+        Assert.Equal(1, RuntimeCompat.SchemaVersion);
+    }
+
+    [Fact]
+    public void DataRootResolver_PrefersDesktopUseAgentEnv()
+    {
+        var root = DataRootResolver.ResolveDataRoot(@"C:\dua-data", @"C:\sd-data", @"C:\Users\x\AppData\Local", true, true);
+        Assert.Equal(@"C:\dua-data", root);
+    }
+
+    [Fact]
+    public void DataRootResolver_FallsBackToSemanticDesktopEnv()
+    {
+        var root = DataRootResolver.ResolveDataRoot(null, @"C:\sd-data", @"C:\Users\x\AppData\Local", true, true);
+        Assert.Equal(@"C:\sd-data", root);
+    }
+
+    [Fact]
+    public void DataRootResolver_PrefersExistingNewFolder()
+    {
+        var local = @"C:\Users\x\AppData\Local";
+        var root = DataRootResolver.ResolveDataRoot(null, null, local, newExists: true, legacyExists: true);
+        Assert.Equal(Path.Combine(local, "DesktopUseAgent"), root);
+    }
+
+    [Fact]
+    public void DataRootResolver_UsesLegacyFolderWhenNewMissing()
+    {
+        var local = @"C:\Users\x\AppData\Local";
+        var root = DataRootResolver.ResolveDataRoot(null, null, local, newExists: false, legacyExists: true);
+        Assert.Equal(Path.Combine(local, "SemanticDesktop"), root);
+    }
+
+    [Fact]
+    public void DataRootResolver_NewInstallUsesDesktopUseAgent()
+    {
+        var local = @"C:\Users\x\AppData\Local";
+        var root = DataRootResolver.ResolveDataRoot(null, " ", local, newExists: false, legacyExists: false);
+        Assert.Equal(Path.Combine(local, "DesktopUseAgent"), root);
+    }
 }

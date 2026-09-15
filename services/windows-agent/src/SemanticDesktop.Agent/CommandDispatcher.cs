@@ -1335,9 +1335,16 @@ public sealed class CommandDispatcher : IDisposable
                           parameters.Value.TryGetProperty("autoApproveAsk", out var a) &&
                           a.ValueKind is JsonValueKind.True or JsonValueKind.False &&
                           a.GetBoolean();
-        var session = _security.Sessions.Create(clientId, autoApprove);
+        var timeoutSeconds = GetIntParam(parameters, "approvalTimeoutSeconds") ?? 30;
+        var session = _security.Sessions.Create(clientId, autoApprove, TimeSpan.FromSeconds(timeoutSeconds));
         return ToolResult<object>.Success(
-            new { session.SessionId, session.ClientId, session.AutoApproveAsk },
+            new
+            {
+                session.SessionId,
+                session.ClientId,
+                session.AutoApproveAsk,
+                approvalTimeoutSeconds = (int)session.ApprovalTimeout.TotalSeconds
+            },
             ResultMeta.Create(requestId, started));
     }
 

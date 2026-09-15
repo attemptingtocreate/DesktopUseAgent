@@ -16,7 +16,7 @@ public sealed class AgentBridge
 
     public AgentBridge(string? pipeName = null, string? agentProjectOrDll = null)
     {
-        _pipeName = string.IsNullOrWhiteSpace(pipeName) ? PipeNames.Default : pipeName;
+        _pipeName = PipeNames.Resolve(pipeName);
         _agentProjectOrDll = agentProjectOrDll;
     }
 
@@ -67,6 +67,11 @@ public sealed class AgentBridge
             psi.ArgumentList.Add("--project");
             psi.ArgumentList.Add(_agentProjectOrDll);
             psi.ArgumentList.Add("--");
+            psi.ArgumentList.Add($"--pipe={_pipeName}");
+        }
+        else if (_agentProjectOrDll.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            psi.FileName = _agentProjectOrDll;
             psi.ArgumentList.Add($"--pipe={_pipeName}");
         }
         else

@@ -53,6 +53,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SemanticDesktop.Adapters.Te
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SemanticDesktop.Win32.Tests", "tests\SemanticDesktop.Win32.Tests\SemanticDesktop.Win32.Tests.csproj", "{1D722757-6CBF-4B39-A9B4-F530CB12A6D3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SemanticDesktop.App", "..\..\apps\desktop\SemanticDesktop.App\SemanticDesktop.App.csproj", "{3E8A1C72-9B4D-4F61-A2E8-7C5D9F1B4A06}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SemanticDesktop.App.Tests", "..\..\apps\desktop\SemanticDesktop.App.Tests\SemanticDesktop.App.Tests.csproj", "{6D4F2B91-8E3C-4A17-B5D0-2F9C8E6A1B73}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -154,6 +158,14 @@ Global
 		{1D722757-6CBF-4B39-A9B4-F530CB12A6D3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1D722757-6CBF-4B39-A9B4-F530CB12A6D3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1D722757-6CBF-4B39-A9B4-F530CB12A6D3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3E8A1C72-9B4D-4F61-A2E8-7C5D9F1B4A06}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3E8A1C72-9B4D-4F61-A2E8-7C5D9F1B4A06}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3E8A1C72-9B4D-4F61-A2E8-7C5D9F1B4A06}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3E8A1C72-9B4D-4F61-A2E8-7C5D9F1B4A06}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6D4F2B91-8E3C-4A17-B5D0-2F9C8E6A1B73}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6D4F2B91-8E3C-4A17-B5D0-2F9C8E6A1B73}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6D4F2B91-8E3C-4A17-B5D0-2F9C8E6A1B73}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6D4F2B91-8E3C-4A17-B5D0-2F9C8E6A1B73}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{5B7210EF-AA7E-4958-9605-089ADD39337C} = {6EF719CB-F2E0-4BDF-81EA-7E62742C3E27}
@@ -176,5 +188,6 @@ Global
 		{5878E392-DBF3-47A7-943E-2E2086BE742B} = {6EF719CB-F2E0-4BDF-81EA-7E62742C3E27}
 		{90567F40-F1C5-4175-9A17-1682AB6504B6} = {7AA4A585-95D4-4343-964A-DB6D8A7A6694}
 		{1D722757-6CBF-4B39-A9B4-F530CB12A6D3} = {7AA4A585-95D4-4343-964A-DB6D8A7A6694}
+		{6D4F2B91-8E3C-4A17-B5D0-2F9C8E6A1B73} = {7AA4A585-95D4-4343-964A-DB6D8A7A6694}
 	EndGlobalSection
 EndGlobal

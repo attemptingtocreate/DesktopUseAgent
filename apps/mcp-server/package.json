@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "MCP stdio gateway to the Semantic Desktop Windows Agent named-pipe RPC",
+  "description": "MCP stdio gateway to the DesktopUseAgent Windows Agent named-pipe RPC",
   "main": "dist/index.js",
   "bin": {
-    "semantic-desktop-mcp": "dist/index.js"
+    "semantic-desktop-mcp": "dist/index.js",
+    "desktopuseagent-mcp": "dist/index.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

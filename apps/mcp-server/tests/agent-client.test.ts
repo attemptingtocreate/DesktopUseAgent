@@ -15,6 +15,17 @@ describe("AgentClient", () => {
     expect(resolvePipeName({ SEMANTIC_DESKTOP_PIPE: "custom-pipe" })).toBe("custom-pipe");
   });
 
+  it("resolves DESKTOPUSEAGENT_PIPE before SEMANTIC_DESKTOP_PIPE", () => {
+    expect(resolvePipeName({ DESKTOPUSEAGENT_PIPE: "new-pipe" })).toBe("new-pipe");
+    expect(
+      resolvePipeName({
+        DESKTOPUSEAGENT_PIPE: "new-pipe",
+        SEMANTIC_DESKTOP_PIPE: "legacy-pipe",
+      }),
+    ).toBe("new-pipe");
+    expect(resolvePipeName({ DESKTOPUSEAGENT_PIPE: "  " })).toBe("semantic-desktop-agent");
+  });
+
   it("round-trips JSON-line RPC over a mock named-pipe server", async () => {
     const pipeName = `sd-mcp-test-${process.pid}-${Date.now()}`;
     const pipePath = toWindowsPipePath(pipeName);

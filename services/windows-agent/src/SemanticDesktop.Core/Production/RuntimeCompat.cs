@@ -9,7 +9,10 @@ public static class RuntimeCompat
     public const int SchemaVersion = 1;
     public const string ApiVersion = "1.12.0";
     public const string MinCompatibleApi = "1.0.0";
+    /// <summary>Compatibility product id used by persisted state and existing clients.</summary>
     public const string Product = "SemanticDesktop";
+    public const string ProductDisplayName = "DesktopUseAgent";
+    public const string LegacyProduct = "SemanticDesktop";
 }
 
 public sealed class StateDocument

@@ -2,6 +2,7 @@ using System.Text.Json;
 using SemanticDesktop.Agent;
 using SemanticDesktop.ControlCenter.Client;
 using SemanticDesktop.Core.Commands;
+using SemanticDesktop.Core.Production;
 using SemanticDesktop.Core.Serialization;
 using SemanticDesktop.IPC;
 
@@ -123,5 +124,47 @@ public class ControlPlaneTests
             .Any(r => r.GetProperty("processName").GetString() == "ContosoBank");
         Assert.True(rules);
         dispatcher.Dispose();
+    }
+
+    [Fact]
+    public void ProductBranding_KeepsCompatIds()
+    {
+        Assert.Equal("DesktopUseAgent", RuntimeCompat.ProductDisplayName);
+        Assert.Equal("SemanticDesktop", RuntimeCompat.Product);
+        Assert.Equal("semantic-desktop-agent", PipeNames.Default);
+    }
+
+    [Fact]
+    public async Task SessionCreate_AcceptsApprovalTimeoutSeconds()
+    {
+        using var dispatcher = new CommandDispatcher();
+        var created = await dispatcher.DispatchAsync(new RpcRequest
+        {
+            Id = "sc",
+            Method = CommandNames.SessionCreate,
+            Params = JsonSerializer.SerializeToElement(new
+            {
+                clientId = "native-chat",
+                autoApproveAsk = false,
+                approvalTimeoutSeconds = 120
+            }, JsonDefaults.Options)
+        }, CancellationToken.None);
+
+        using var createdDoc = Doc(created);
+        Assert.True(createdDoc.RootElement.GetProperty("ok").GetBoolean());
+        var data = createdDoc.RootElement.GetProperty("data");
+        Assert.Equal("native-chat", data.GetProperty("clientId").GetString());
+        Assert.False(data.GetProperty("autoApproveAsk").GetBoolean());
+        Assert.Equal(120, data.GetProperty("approvalTimeoutSeconds").GetInt32());
+
+        var defaulted = await dispatcher.DispatchAsync(new RpcRequest
+        {
+            Id = "sc2",
+            Method = CommandNames.SessionCreate,
+            Params = JsonSerializer.SerializeToElement(new { clientId = "mcp" }, JsonDefaults.Options)
+        }, CancellationToken.None);
+        using var defaultDoc = Doc(defaulted);
+        Assert.True(defaultDoc.RootElement.GetProperty("ok").GetBoolean());
+        Assert.Equal(30, defaultDoc.RootElement.GetProperty("data").GetProperty("approvalTimeoutSeconds").GetInt32());
     }
 }

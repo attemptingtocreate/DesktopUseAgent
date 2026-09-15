@@ -102,7 +102,7 @@ internal sealed class SecurityContext
         }
 
         var approval = Approvals.Create(session, action, evaluation);
-        var allowed = await Approvals.WaitAsync(approval.Id, TimeSpan.FromSeconds(30), cancellationToken)
+        var allowed = await Approvals.WaitAsync(approval.Id, session.ApprovalTimeout, cancellationToken)
             .ConfigureAwait(false);
         if (!allowed)
         {

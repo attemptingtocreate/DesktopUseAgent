@@ -1,8 +1,10 @@
-# Semantic Desktop Agent
+# DesktopUseAgent
 
 ## Master Engineering Specification
 
 ## 0. Mission
+
+User-facing product name is DesktopUseAgent; internal namespaces and pipes may still say SemanticDesktop for compatibility.
 
 platform that allows an LLM/agent to control the user's computer primarily through **semantic operating-system and application interfaces rather than screenshots and pixel-based computer vision**.
 

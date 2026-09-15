@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>SemanticDesktop.Agent</RootNamespace>
+    <AssemblyName>DesktopUseAgent.Agent</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\SemanticDesktop.Core\SemanticDesktop.Core.csproj" />

@@ -4,6 +4,10 @@ import { randomUUID } from "node:crypto";
 export const DEFAULT_PIPE_NAME = "semantic-desktop-agent";
 
 export function resolvePipeName(env: NodeJS.ProcessEnv = process.env): string {
+  const primary = env.DESKTOPUSEAGENT_PIPE?.trim();
+  if (primary && primary.length > 0) {
+    return primary;
+  }
   const override = env.SEMANTIC_DESKTOP_PIPE?.trim();
   return override && override.length > 0 ? override : DEFAULT_PIPE_NAME;
 }
