@@ -2648,6 +2648,8 @@ result normalization
 
 Must consume shared schemas rather than redefine them.
 
+ChatGPT remote access uses OpenAI Secure MCP Tunnel (`tunnel-client`) with unchanged local stdio → named pipe transport. Operator guide: [docs/chatgpt-secure-mcp-tunnel.md](docs/chatgpt-secure-mcp-tunnel.md).
+
 ---
 
 ## Agent H — Desktop UI

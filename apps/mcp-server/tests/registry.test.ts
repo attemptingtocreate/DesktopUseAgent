@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { AgentClient } from "../src/agent-client.js";
 import { createServer } from "../src/server.js";
+import { TOOL_METADATA } from "../src/tools/metadata.js";
 import { listRegisteredToolNames, TOOL_NAMES } from "../src/tools/registry.js";
 
 const EXPECTED_TOOLS = [
@@ -107,5 +108,68 @@ describe("tool registry", () => {
     ).sort();
 
     expect(registered).toEqual([...EXPECTED_TOOLS].sort());
+  });
+
+  it("defines metadata for exactly the registered tools", () => {
+    expect(Object.keys(TOOL_METADATA).sort()).toEqual([...TOOL_NAMES].sort());
+  });
+
+  it("assigns ChatGPT-compatible metadata to every tool", () => {
+    for (const name of TOOL_NAMES) {
+      const meta = TOOL_METADATA[name];
+      expect(meta.title.length).toBeGreaterThan(0);
+      expect(typeof meta.annotations.readOnlyHint).toBe("boolean");
+      expect(typeof meta.annotations.destructiveHint).toBe("boolean");
+      expect(typeof meta.annotations.openWorldHint).toBe("boolean");
+    }
+  });
+
+  it("classifies representative tools with OpenAI semantics", () => {
+    expect(TOOL_METADATA["desktop.get_state"].annotations.readOnlyHint).toBe(true);
+    expect(TOOL_METADATA["filesystem.write_text"].annotations.destructiveHint).toBe(true);
+    expect(TOOL_METADATA["browser.navigate"].annotations.openWorldHint).toBe(true);
+    expect(TOOL_METADATA["browser.navigate"].annotations.destructiveHint).toBe(false);
+    expect(TOOL_METADATA["browser.close_tab"].annotations.destructiveHint).toBe(true);
+    expect(TOOL_METADATA["desktop.batch"].annotations.destructiveHint).toBe(true);
+    expect(TOOL_METADATA["desktop.batch"].annotations.openWorldHint).toBe(true);
+    expect(TOOL_METADATA["plan.execute"].annotations.destructiveHint).toBe(true);
+    expect(TOOL_METADATA["plan.cancel"].annotations.destructiveHint).toBe(false);
+    expect(TOOL_METADATA["plan.cancel"].annotations.readOnlyHint).toBe(false);
+    expect(TOOL_METADATA["window.focus"].annotations.destructiveHint).toBe(false);
+    expect(TOOL_METADATA["window.focus"].annotations.readOnlyHint).toBe(false);
+    expect(TOOL_METADATA["ui.invoke"].annotations.readOnlyHint).toBe(false);
+    expect(TOOL_METADATA["ui.invoke"].annotations.destructiveHint).toBe(true);
+    expect(TOOL_METADATA["input.type"].annotations.destructiveHint).toBe(true);
+    expect(TOOL_METADATA["input.mouse_move"].annotations.destructiveHint).toBe(false);
+    expect(TOOL_METADATA["input.scroll"].annotations.destructiveHint).toBe(false);
+  });
+
+  it("registers title and annotations on McpServer tools", () => {
+    const client = new AgentClient({ pipeName: "unused" });
+    client.send = vi.fn(async () => ({ ok: true, data: {} }));
+
+    const { server } = createServer({ client });
+    const registeredTools = (
+      server as unknown as {
+        _registeredTools: Record<
+          string,
+          {
+            title?: string;
+            annotations?: {
+              readOnlyHint?: boolean;
+              destructiveHint?: boolean;
+              openWorldHint?: boolean;
+            };
+          }
+        >;
+      }
+    )._registeredTools;
+
+    for (const name of TOOL_NAMES) {
+      const tool = registeredTools[name];
+      const meta = TOOL_METADATA[name];
+      expect(tool.title).toBe(meta.title);
+      expect(tool.annotations).toEqual(meta.annotations);
+    }
   });
 });

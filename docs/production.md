@@ -27,7 +27,7 @@ Missing `state.json` or `schemaVersion: 0` migrates to v1 (install id, telemetry
 
 ## IPC
 
-Named pipes use `PipeOptions.CurrentUserOnly`. MCP remains local stdio to that pipe (`semantic-desktop-agent`).
+Named pipes use `PipeOptions.CurrentUserOnly`. MCP remains local stdio to that pipe (`semantic-desktop-agent`). For ChatGPT over the internet, use the official OpenAI Secure MCP Tunnel (`tunnel-client`) — see [chatgpt-secure-mcp-tunnel.md](./chatgpt-secure-mcp-tunnel.md). Stdio and the named pipe stay on-machine; `tunnel-client` provides outbound HTTPS to OpenAI's control plane.
 
 ## Security review
 

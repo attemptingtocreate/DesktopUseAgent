@@ -3,6 +3,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.Win32;
 using SemanticDesktop.App.Mcp;
 using SemanticDesktop.App.Models;
@@ -350,7 +351,9 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
         }
 
         panel.Children.Add(actions);
-        return Wrap(panel, message.Role == ChatRoles.User ? (byte)230 : (byte)245, 247, 250);
+        return Wrap(panel, message.Role == ChatRoles.User
+            ? "ControlFillColorDefaultBrush"
+            : "CardBackgroundFillColorDefaultBrush");
     }
 
     private static Border ToolChip(ToolInvocation tool) =>
@@ -358,7 +361,7 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
         {
             Text = string.IsNullOrWhiteSpace(tool.Summary) ? $"[{tool.Tool}]" : $"[{tool.Summary}]",
             TextWrapping = TextWrapping.Wrap
-        }, 236, 244, 232);
+        }, "ControlFillColorSecondaryBrush");
 
     private async void Send_Click(object sender, RoutedEventArgs e) => await SendAsync();
 
@@ -1128,13 +1131,18 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
 
     private static Border Card(string text) => Wrap(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap });
 
-    private static Border Wrap(UIElement child) => Wrap(child, 245, 247, 250);
+    private static Border Wrap(UIElement child) => Wrap(child, "CardBackgroundFillColorDefaultBrush");
 
-    private static Border Wrap(UIElement child, byte r, byte g, byte b) => new()
+    private static Border Wrap(UIElement child, string backgroundResource) => new()
     {
         Child = child,
-        Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, r, g, b)),
+        Background = ThemeBrush(backgroundResource),
+        BorderBrush = ThemeBrush("ControlStrokeColorDefaultBrush"),
+        BorderThickness = new Thickness(1),
         Padding = new Thickness(12),
         CornerRadius = new CornerRadius(8)
     };
+
+    private static Brush ThemeBrush(string resourceKey) =>
+        (Brush)Application.Current.Resources[resourceKey];
 }

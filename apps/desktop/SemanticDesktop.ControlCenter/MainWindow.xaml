@@ -5,13 +5,17 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="DesktopUseAgent">
 
-    <Grid>
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="#111418" Padding="16,10">
+        <Border Grid.Row="0"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="16,10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -19,11 +23,16 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
-                    <TextBlock Text="DesktopUseAgent" FontSize="18" FontWeight="SemiBold" Foreground="White" />
-                    <TextBlock x:Name="StatusText" Text="Starting…" Foreground="#9AA4B2" VerticalAlignment="Center" />
+                    <TextBlock Text="DesktopUseAgent" FontSize="18" FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                    <TextBlock x:Name="StatusText" Text="Starting…"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               VerticalAlignment="Center" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,0,8,0">
-                    <TextBlock x:Name="TaskStatusText" Text="" Foreground="#D0D7DE" VerticalAlignment="Center" />
+                    <TextBlock x:Name="TaskStatusText" Text=""
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               VerticalAlignment="Center" />
                     <Button x:Name="StopTaskButton" Content="Stop" Click="StopTask_Click" Visibility="Collapsed" />
                 </StackPanel>
                 <Button Grid.Column="2" x:Name="EmergencyButton" Content="EMERGENCY STOP"
@@ -39,6 +48,7 @@
         <NavigationView
             x:Name="Nav"
             Grid.Row="1"
+            Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
             PaneDisplayMode="Left"
             IsSettingsVisible="False"
             IsBackButtonVisible="Collapsed"
@@ -65,14 +75,24 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <Border Grid.Column="0" Background="#F4F6F8" BorderBrush="#E4E7EC" BorderThickness="0,0,1,0">
+                    <Border Grid.Column="0"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                            BorderThickness="0,0,1,0">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
-                            <Button x:Name="NewChatButton" Content="New Chat" Margin="12" HorizontalAlignment="Stretch" Click="NewChat_Click" />
-                            <ListView x:Name="ConversationList" Grid.Row="1" SelectionChanged="ConversationList_SelectionChanged" />
+                            <Button x:Name="NewChatButton" Content="New Chat" Margin="12"
+                                    HorizontalAlignment="Stretch"
+                                    Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                    Click="NewChat_Click" />
+                            <ListView x:Name="ConversationList" Grid.Row="1"
+                                      Background="Transparent"
+                                      Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                      SelectionChanged="ConversationList_SelectionChanged" />
                         </Grid>
                     </Border>
 
@@ -85,7 +105,10 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <Border Padding="16,10" BorderBrush="#E4E7EC" BorderThickness="0,0,0,1">
+                        <Border Padding="16,10"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                BorderThickness="0,0,0,1">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -94,11 +117,17 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="Agent" VerticalAlignment="Center" Margin="0,0,8,0" />
                                 <ComboBox x:Name="AgentSelector" Grid.Column="1" MinWidth="260" SelectionChanged="AgentSelector_SelectionChanged" />
-                                <TextBlock x:Name="ComputerStatusText" Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="#667085" />
+                                <TextBlock x:Name="ComputerStatusText" Grid.Column="2" Margin="12,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </Grid>
                         </Border>
 
-                        <Border x:Name="LiveTaskBar" Grid.Row="1" Background="#EEF4FF" Padding="16,10" Visibility="Collapsed">
+                        <Border x:Name="LiveTaskBar" Grid.Row="1"
+                                Background="{ThemeResource ControlFillColorSecondaryBrush}"
+                                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                BorderThickness="0,0,0,1"
+                                Padding="16,10" Visibility="Collapsed">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -106,8 +135,10 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
                                     <TextBlock Text="Working on your computer…" FontWeight="SemiBold" />
-                                    <TextBlock x:Name="CurrentActionText" Text="Current action: —" />
-                                    <TextBlock x:Name="ActionsCompletedText" Text="Actions completed: 0" />
+                                    <TextBlock x:Name="CurrentActionText" Text="Current action: —"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="ActionsCompletedText" Text="Actions completed: 0"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
                                 <Button Grid.Column="1" Content="Stop" Click="StopTask_Click" />
                             </Grid>
@@ -117,10 +148,15 @@
                             <StackPanel x:Name="MessagesHost" Spacing="12" />
                         </ScrollViewer>
 
-                        <Border x:Name="ApprovalBar" Grid.Row="3" Background="#FFF6ED" Padding="16" Visibility="Collapsed">
+                        <Border x:Name="ApprovalBar" Grid.Row="3"
+                                Background="{ThemeResource ControlFillColorSecondaryBrush}"
+                                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                BorderThickness="0,1,0,0"
+                                Padding="16" Visibility="Collapsed">
                             <StackPanel Spacing="8">
                                 <TextBlock x:Name="ApprovalText" Text="DesktopUseAgent wants to run an action." TextWrapping="Wrap" FontWeight="SemiBold" />
-                                <TextBlock x:Name="ApprovalDetail" Text="" TextWrapping="Wrap" />
+                                <TextBlock x:Name="ApprovalDetail" Text="" TextWrapping="Wrap"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button Content="View command" Click="ViewApproval_Click" />
                                     <Button Content="Deny" Click="DenyChatApproval_Click" />
@@ -129,13 +165,18 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Grid.Row="4" Padding="12,10" BorderBrush="#E4E7EC" BorderThickness="0,1,0,0">
+                        <Border Grid.Row="4" Padding="12,10"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                BorderThickness="0,1,0,0">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="Composer"
+                                         Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                         Foreground="{ThemeResource TextFillColorPrimaryBrush}"
                                          AcceptsReturn="True"
                                          TextWrapping="Wrap"
                                          MinHeight="56"
