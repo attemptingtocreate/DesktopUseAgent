@@ -20,6 +20,7 @@ public sealed class AppHost
     public AgentRuntime Runtime { get; }
     public ConversationService ConversationsApi { get; }
     public AgentLifecycle? Lifecycle { get; }
+    public OpenAiTunnelLifecycle OpenAiTunnel { get; }
     public McpGatewayStatus McpGatewayStatus { get; }
     public IToolRouter ToolRouter { get; }
     public IProviderResolver ProviderResolver { get; }
@@ -33,6 +34,8 @@ public sealed class AppHost
         IAgentRuntimeObserver? observer = null,
         IApprovalCoordinator? approvals = null,
         IAgentProcessGateway? processGateway = null,
+        IOpenAiTunnelProcessGateway? openAiTunnelGateway = null,
+        IOpenAiTunnelPathResolver? openAiTunnelPaths = null,
         string? agentProjectOrDll = null,
         string? repoRoot = null)
     {
@@ -68,6 +71,12 @@ public sealed class AppHost
             Lifecycle = new AgentLifecycle(new AgentBridgeProcessGateway(new AgentBridge(agentProjectOrDll: agentProjectOrDll), agentProjectOrDll), Settings);
         }
 
+        OpenAiTunnel = new OpenAiTunnelLifecycle(
+            openAiTunnelGateway ?? new OpenAiTunnelProcessGateway(),
+            Settings,
+            Credentials,
+            openAiTunnelPaths);
+
         McpGatewayStatus = AgentLifecycle.ProbeMcpGateway(repoRoot);
     }
 
@@ -81,6 +90,8 @@ public sealed class AppHost
         IAgentRpc? rpc = null,
         IAgentRuntimeObserver? observer = null,
         IApprovalCoordinator? approvals = null,
-        IAgentProcessGateway? processGateway = null) =>
-        new(null, providers, router, mcpHost, rpc, observer, approvals, processGateway);
+        IAgentProcessGateway? processGateway = null,
+        IOpenAiTunnelProcessGateway? openAiTunnelGateway = null,
+        IOpenAiTunnelPathResolver? openAiTunnelPaths = null) =>
+        new(null, providers, router, mcpHost, rpc, observer, approvals, processGateway, openAiTunnelGateway, openAiTunnelPaths);
 }

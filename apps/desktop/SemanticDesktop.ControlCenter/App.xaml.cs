@@ -64,6 +64,15 @@ public partial class App : Application
         {
             // MainWindow surfaces agent status.
         }
+
+        try
+        {
+            await Host.OpenAiTunnel.StartIfEnabledAsync();
+        }
+        catch
+        {
+            // Settings surfaces tunnel status.
+        }
     }
 
     private static void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
@@ -74,6 +83,15 @@ public partial class App : Application
 
     private async void Window_Closed(object sender, WindowEventArgs args)
     {
+        try
+        {
+            await Host.OpenAiTunnel.StopAsync();
+        }
+        catch
+        {
+            // ignore
+        }
+
         try
         {
             if (Host.Lifecycle is not null)

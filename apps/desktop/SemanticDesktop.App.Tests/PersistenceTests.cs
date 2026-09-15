@@ -44,6 +44,33 @@ public class PersistenceTests
     }
 
     [Fact]
+    public void CredentialStore_OpenAiTunnel_RuntimeKey_Roundtrip_And_Delete()
+    {
+        var root = TestHarness.TempRoot();
+        try
+        {
+            var store = new CredentialStore(root);
+            var key = CredentialStore.OpenAiTunnelRuntimeKey();
+            store.Set(key, "sk-tunnel-runtime-456");
+            Assert.Equal("sk-tunnel-runtime-456", store.Get(key));
+            Assert.True(store.Exists(key));
+
+            var files = Directory.GetFiles(Path.Combine(root, "secrets"), "*.dpapi");
+            Assert.Single(files);
+            Assert.DoesNotContain("sk-tunnel-runtime-456", File.ReadAllText(files[0]));
+
+            var reopened = new CredentialStore(root);
+            Assert.Equal("sk-tunnel-runtime-456", reopened.Get(key));
+            Assert.True(reopened.Delete(key));
+            Assert.Null(reopened.Get(key));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void CredentialStore_Dpapi_Roundtrip()
     {
         var root = TestHarness.TempRoot();

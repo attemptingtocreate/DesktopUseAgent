@@ -26,6 +26,8 @@ public sealed class CredentialStore
 
     public static string McpEnv(string mcpId, string envName) => $"mcp:{mcpId}:env:{envName}";
 
+    public static string OpenAiTunnelRuntimeKey() => "openai:tunnel:runtimeKey";
+
     public void Set(string key, string secret)
     {
         if (string.IsNullOrWhiteSpace(key))

@@ -6,7 +6,16 @@ public sealed class AppSettings
     public AgentSettings Agents { get; set; } = new();
     public ComputerControlSettings ComputerControl { get; set; } = new();
     public PrivacySettings Privacy { get; set; } = new();
+    public OpenAiTunnelSettings OpenAiTunnel { get; set; } = new();
     public AdvancedSettings Advanced { get; set; } = new();
+}
+
+public sealed class OpenAiTunnelSettings
+{
+    public bool Enabled { get; set; }
+    public string ProfileName { get; set; } = "desktopuseagent";
+    public string? ProfileDirectory { get; set; }
+    public string? TunnelClientPath { get; set; }
 }
 
 public sealed class GeneralSettings

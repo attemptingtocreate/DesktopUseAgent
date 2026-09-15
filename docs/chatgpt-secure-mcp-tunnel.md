@@ -81,6 +81,15 @@ It never accepts, prints, or persists API keys. If `CONTROL_PLANE_API_KEY` is al
 
 ## Start the tunnel
 
+### Managed startup (recommended)
+
+1. Open **DesktopUseAgent Control Center → Settings**.
+2. In **ChatGPT Secure MCP Tunnel**, save your restricted **Tunnels Read + Use** runtime API key once (stored with DPAPI; never written to `app-settings.json`).
+3. Enable **Enabled (start with DesktopUseAgent)**. Control Center runs `tunnel-client doctor --explain`, then starts `tunnel-client run` in the background and stops it when Control Center exits.
+4. Turning the toggle **off** stops the tunnel immediately and keeps it off on future launches. Native OpenAI API / Ollama chat providers keep working independently.
+
+### Manual startup (troubleshooting / fallback)
+
 Set the runtime key for **this shell session only**:
 
 ```powershell
