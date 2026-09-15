@@ -14,23 +14,41 @@ public partial class App : Application
 
     public App()
     {
-        InitializeComponent();
-        var root = FindRepoRoot();
-        var agentProject = Path.Combine(root, "services", "windows-agent", "src", "SemanticDesktop.Agent", "SemanticDesktop.Agent.csproj");
-        var launchPath = File.Exists(agentProject) ? agentProject : FindPublishedAgent();
-        Bridge = new AgentBridge(agentProjectOrDll: launchPath);
-        Host = new AppHost(
-            SemanticDesktop.App.Persistence.DataRootResolver.Resolve(),
-            observer: Observer,
-            agentProjectOrDll: launchPath,
-            repoRoot: root);
+        UnhandledException += App_UnhandledException;
+        try
+        {
+            InitializeComponent();
+            var root = FindRepoRoot();
+            var agentProject = Path.Combine(root, "services", "windows-agent", "src", "SemanticDesktop.Agent", "SemanticDesktop.Agent.csproj");
+            var launchPath = File.Exists(agentProject) ? agentProject : FindPublishedAgent();
+            Bridge = new AgentBridge(agentProjectOrDll: launchPath);
+            Host = new AppHost(
+                SemanticDesktop.App.Persistence.DataRootResolver.Resolve(),
+                observer: Observer,
+                agentProjectOrDll: launchPath,
+                repoRoot: root);
+        }
+        catch (Exception ex)
+        {
+            StartupCrashLogger.Log("App construction", ex);
+            throw;
+        }
     }
 
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
-        _window = new MainWindow();
-        _window.Closed += Window_Closed;
-        _window.Activate();
+        try
+        {
+            _window = new MainWindow();
+            _window.Closed += Window_Closed;
+            _window.Activate();
+        }
+        catch (Exception ex)
+        {
+            StartupCrashLogger.Log("MainWindow construction or activation", ex);
+            throw;
+        }
+
         try
         {
             if (Host.Lifecycle is not null)
@@ -46,6 +64,12 @@ public partial class App : Application
         {
             // MainWindow surfaces agent status.
         }
+    }
+
+    private static void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
+    {
+        StartupCrashLogger.Log("Application.UnhandledException", e.Exception);
+        e.Handled = false;
     }
 
     private async void Window_Closed(object sender, WindowEventArgs args)
@@ -91,5 +115,37 @@ public partial class App : Application
         }
 
         return AppContext.BaseDirectory;
+    }
+}
+
+internal static class StartupCrashLogger
+{
+    private static readonly object Sync = new();
+
+    public static void Log(string stage, Exception exception)
+    {
+        try
+        {
+            lock (Sync)
+            {
+                var directory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "DesktopUseAgent",
+                    "crashes");
+                Directory.CreateDirectory(directory);
+                var path = Path.Combine(directory, $"ui-startup-{DateTime.Now:yyyyMMdd-HHmmss-fff}.txt");
+                File.WriteAllText(
+                    path,
+                    $"Stage: {stage}{Environment.NewLine}" +
+                    $"Timestamp: {DateTimeOffset.Now:O}{Environment.NewLine}" +
+                    $"Executable: {Environment.ProcessPath}{Environment.NewLine}" +
+                    $"Base directory: {AppContext.BaseDirectory}{Environment.NewLine}{Environment.NewLine}" +
+                    exception);
+            }
+        }
+        catch
+        {
+            // Logging must never replace the original startup exception.
+        }
     }
 }

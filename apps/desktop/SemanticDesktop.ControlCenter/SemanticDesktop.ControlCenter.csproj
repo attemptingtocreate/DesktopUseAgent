@@ -12,11 +12,10 @@
     <UseWinUI>true</UseWinUI>
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
-    <EnableMsixTooling>false</EnableMsixTooling>
-    <AppxGeneratePriEnabled>false</AppxGeneratePriEnabled>
-    <AppxGeneratePrisForPortableLibrariesEnabled>false</AppxGeneratePrisForPortableLibrariesEnabled>
-    <IncludeProjectPriFile>false</IncludeProjectPriFile>
-    <EnableDefaultPriItems>false</EnableDefaultPriItems>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <AppxGeneratePriEnabled>true</AppxGeneratePriEnabled>
+    <IncludeProjectPriFile>true</IncludeProjectPriFile>
+    <EnableDefaultPriItems>true</EnableDefaultPriItems>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
@@ -31,4 +30,11 @@
   <ItemGroup>
     <Manifest Include="$(ApplicationManifest)" />
   </ItemGroup>
+  <Target Name="EnableControlCenterPriGeneration"
+          BeforeTargets="CalculateAppxGenerateProjectPriEnabled">
+    <PropertyGroup>
+      <AppxGeneratePriEnabled>true</AppxGeneratePriEnabled>
+      <IncludeProjectPriFile>true</IncludeProjectPriFile>
+    </PropertyGroup>
+  </Target>
 </Project>
