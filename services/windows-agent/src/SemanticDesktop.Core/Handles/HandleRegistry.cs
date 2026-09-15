@@ -6,7 +6,9 @@ public enum HandleKind
 {
     Window,
     Element,
-    Process
+    Process,
+    Browser,
+    Tab
 }
 
 public sealed class HandleRegistry
@@ -106,6 +108,8 @@ public sealed class HandleRegistry
             HandleKind.Window => "win_",
             HandleKind.Element => "uia_",
             HandleKind.Process => "proc_",
+            HandleKind.Browser => "brw_",
+            HandleKind.Tab => "tab_",
             _ => "id_"
         };
 

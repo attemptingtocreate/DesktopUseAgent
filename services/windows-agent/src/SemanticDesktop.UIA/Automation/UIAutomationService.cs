@@ -17,7 +17,7 @@ public sealed class UIAutomationService : IUIAutomationService, IDisposable
     private readonly HandleRegistry _handles;
     private readonly WindowService _windows;
     private readonly ElementCache _cache;
-    private readonly UIA3Automation _automation;
+    private readonly UIA3Automation? _automation;
     private readonly TimeSpan _defaultTimeout = TimeSpan.FromSeconds(10);
 
     public UIAutomationService(HandleRegistry handles, WindowService windows)
@@ -25,8 +25,19 @@ public sealed class UIAutomationService : IUIAutomationService, IDisposable
         _handles = handles;
         _windows = windows;
         _cache = new ElementCache();
-        _automation = new UIA3Automation();
+        try
+        {
+            _automation = new UIA3Automation();
+            Available = true;
+        }
+        catch
+        {
+            _automation = null;
+            Available = false;
+        }
     }
+
+    public bool Available { get; }
 
     public int LastElementsInspected { get; private set; }
     public bool? LastCacheHit { get; private set; }
@@ -224,7 +235,7 @@ public sealed class UIAutomationService : IUIAutomationService, IDisposable
 
     public void Dispose()
     {
-        _automation.Dispose();
+        _automation?.Dispose();
     }
 
     private async Task<IReadOnlyList<UIElement>> FindInternalAsync(UIFindQuery query, CancellationToken cancellationToken)
@@ -233,6 +244,11 @@ public sealed class UIAutomationService : IUIAutomationService, IDisposable
         {
             LastCacheHit = false;
             LastElementsInspected = 0;
+            if (_automation is null)
+            {
+                return Task.FromResult<IReadOnlyList<UIElement>>(Array.Empty<UIElement>());
+            }
+
             var root = ResolveRoot(query.WindowId, query.RootId);
             var maxResults = query.MaxResults ?? 25;
             var depth = query.Depth ?? 12;
@@ -328,6 +344,11 @@ public sealed class UIAutomationService : IUIAutomationService, IDisposable
 
     private AutomationElement ResolveRoot(string? windowId, string? rootId)
     {
+        if (_automation is null)
+        {
+            throw new InvalidOperationException($"{ErrorCodes.Unsupported}: UI Automation is unavailable.");
+        }
+
         if (!string.IsNullOrWhiteSpace(rootId))
         {
             if (_handles.TryResolve<CachedElement>(rootId, out var cached, out _) && cached.Element.IsAvailable)

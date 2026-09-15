@@ -1,4 +1,5 @@
 using System.Text.Json;
+using SemanticDesktop.Core.Commands;
 using SemanticDesktop.Core.Plans;
 using SemanticDesktop.Execution.Conditions;
 using SemanticDesktop.Execution.Plans;
@@ -136,6 +137,51 @@ public class PlanExecutorUnitTests
         Assert.True(executor.Cancel("plan_cancel_test"));
         var state = await run;
         Assert.Equal(PlanStatus.Cancelled, state.Status);
+    }
+
+    [Fact]
+    public async Task Execute_FusesFilesystemExists_AndRunsParallelReads()
+    {
+        var files = new FileService();
+        var conditions = new ConditionEvaluator(new FakeProbe(), files);
+        var running = 0;
+        var max = 0;
+        var actions = new List<string>();
+        var executor = new PlanExecutor(conditions, async (action, args, _) =>
+        {
+            lock (actions) { actions.Add(action); }
+            if (action == CommandNames.FilesystemExists || action == CommandNames.FilesystemInspect)
+            {
+                var current = Interlocked.Increment(ref running);
+                while (true)
+                {
+                    var snapshot = Volatile.Read(ref max);
+                    if (current <= snapshot || Interlocked.CompareExchange(ref max, current, snapshot) == snapshot)
+                    {
+                        break;
+                    }
+                }
+
+                await Task.Delay(40);
+                Interlocked.Decrement(ref running);
+            }
+
+            return JsonSerializer.SerializeToElement(new { ok = true, data = new { exists = true } });
+        });
+
+        var dir = Path.GetTempPath();
+        var state = await executor.ExecuteAsync(new ExecutionPlan
+        {
+            Steps =
+            {
+                new PlanStep { Id = "a", Action = CommandNames.FilesystemExists, Args = new Dictionary<string, JsonElement> { ["path"] = JsonSerializer.SerializeToElement(Path.Combine(dir, "a")) } },
+                new PlanStep { Id = "b", Action = CommandNames.FilesystemExists, Args = new Dictionary<string, JsonElement> { ["path"] = JsonSerializer.SerializeToElement(Path.Combine(dir, "b")) } }
+            }
+        }, CancellationToken.None);
+
+        Assert.Equal(PlanStatus.Succeeded, state.Status);
+        Assert.True(state.FusedCount >= 1 || state.ParallelGroupCount >= 1);
+        Assert.Contains(actions, a => a is CommandNames.FilesystemInspect or CommandNames.FilesystemExists);
     }
 
     private sealed class FakeProbe : IConditionProbe

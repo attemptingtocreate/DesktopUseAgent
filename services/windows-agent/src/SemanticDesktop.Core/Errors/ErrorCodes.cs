@@ -21,4 +21,11 @@ public static class ErrorCodes
     public const string ApprovalTimeout = "APPROVAL_TIMEOUT";
     public const string EmergencyStopped = "EMERGENCY_STOPPED";
     public const string PathNotAllowed = "PATH_NOT_ALLOWED";
+    public const string AdapterNotFound = "ADAPTER_NOT_FOUND";
+    public const string AdapterUnavailable = "ADAPTER_UNAVAILABLE";
+    public const string AdapterFailed = "ADAPTER_FAILED";
+    public const string VisionFailed = "VISION_FAILED";
+    public const string IncompatibleSchema = "INCOMPATIBLE_SCHEMA";
+    public const string IntegrityFailed = "INTEGRITY_FAILED";
+    public const string UpdateFailed = "UPDATE_FAILED";
 }

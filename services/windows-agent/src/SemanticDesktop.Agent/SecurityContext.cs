@@ -18,12 +18,22 @@ internal sealed class SecurityContext
     public static readonly HashSet<string> EmergencyExemptions = new(StringComparer.OrdinalIgnoreCase)
     {
         CommandNames.SystemPing,
+        CommandNames.SystemStatus,
         CommandNames.SystemEmergencyStopClear,
         CommandNames.PermissionApprove,
         CommandNames.PermissionDeny,
         CommandNames.PermissionPending,
+        CommandNames.PermissionPolicyGet,
+        CommandNames.PermissionPolicySet,
         CommandNames.AuditList,
-        CommandNames.SessionGet
+        CommandNames.SessionGet,
+        CommandNames.SessionList,
+        CommandNames.SystemUpdateCheck,
+        CommandNames.SystemUpdateApply,
+        CommandNames.SystemTelemetryGet,
+        CommandNames.SystemTelemetrySet,
+        CommandNames.SystemSecurityReview,
+        CommandNames.SystemIntegrity
     };
 
     public AgentSession ResolveSession(JsonElement? parameters)
@@ -49,10 +59,15 @@ internal sealed class SecurityContext
         }
 
         if (action is CommandNames.SystemPing
-            or CommandNames.SessionCreate or CommandNames.SessionGet
+            or CommandNames.SessionCreate or CommandNames.SessionGet or CommandNames.SessionList
             or CommandNames.PermissionApprove or CommandNames.PermissionDeny or CommandNames.PermissionPending
+            or CommandNames.PermissionPolicyGet or CommandNames.PermissionPolicySet
             or CommandNames.AuditList
-            or CommandNames.SystemEmergencyStop or CommandNames.SystemEmergencyStopClear)
+            or CommandNames.SystemStatus
+            or CommandNames.SystemEmergencyStop or CommandNames.SystemEmergencyStopClear
+            or CommandNames.SystemUpdateCheck or CommandNames.SystemUpdateApply
+            or CommandNames.SystemTelemetryGet or CommandNames.SystemTelemetrySet
+            or CommandNames.SystemSecurityReview or CommandNames.SystemIntegrity)
         {
             return PermissionGateResult.Allowed(new PermissionEvaluation
             {

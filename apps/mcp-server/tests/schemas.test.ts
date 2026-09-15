@@ -37,6 +37,68 @@ describe("tool schema validation", () => {
     ).toThrow();
   });
 
+  it("rejects browser.navigate without url", () => {
+    expect(() => parseToolArgs("browser.navigate", {})).toThrow();
+    expect(() => parseToolArgs("browser.navigate", { url: "" })).toThrow();
+  });
+
+  it("rejects browser.get_tab without tabId", () => {
+    expect(() => parseToolArgs("browser.get_tab", {})).toThrow();
+  });
+
+  it("rejects browser.fill without value", () => {
+    expect(() =>
+      parseToolArgs("browser.fill", { selector: { css: "#name" } }),
+    ).toThrow();
+  });
+
+  it("rejects browser.select without value", () => {
+    expect(() =>
+      parseToolArgs("browser.select", { tabId: "tab_1" }),
+    ).toThrow();
+  });
+
+  it("rejects unknown keys on browser.navigate", () => {
+    expect(() =>
+      parseToolArgs("browser.navigate", {
+        url: "https://example.com",
+        extra: true,
+      }),
+    ).toThrow();
+  });
+
+  it("rejects unknown keys on browser selector", () => {
+    expect(() =>
+      parseToolArgs("browser.query", {
+        selector: { css: "button", xpath: "//button" },
+      }),
+    ).toThrow();
+  });
+
+  it("accepts valid browser.navigate args", () => {
+    const parsed = parseToolArgs("browser.navigate", {
+      url: "https://example.com",
+      tabId: "tab_1",
+      timeoutMs: 5000,
+    });
+    expect(parsed).toEqual({
+      url: "https://example.com",
+      tabId: "tab_1",
+      timeoutMs: 5000,
+    });
+  });
+
+  it("accepts valid browser.fill with selector", () => {
+    const parsed = parseToolArgs("browser.fill", {
+      value: "Ada",
+      selector: { testId: "name-input", role: "textbox" },
+    });
+    expect(parsed).toEqual({
+      value: "Ada",
+      selector: { testId: "name-input", role: "textbox" },
+    });
+  });
+
   it("accepts valid window.focus args", () => {
     const parsed = parseToolArgs("window.focus", { windowId: "win_1" });
     expect(parsed).toEqual({ windowId: "win_1" });
@@ -44,6 +106,36 @@ describe("tool schema validation", () => {
 
   it("accepts empty object for desktop.get_state", () => {
     expect(parseToolArgs("desktop.get_state", {})).toEqual({});
+  });
+
+  it("accepts desktop.describe with optional includeControls", () => {
+    expect(parseToolArgs("desktop.describe", {})).toEqual({});
+    expect(parseToolArgs("desktop.describe", { includeControls: false })).toEqual({
+      includeControls: false,
+    });
+  });
+
+  it("accepts desktop.batch calls and filesystem.inspect", () => {
+    expect(
+      parseToolArgs("desktop.batch", {
+        calls: [{ method: "filesystem.exists", params: { path: "C:\\\\tmp\\\\a" } }],
+      }),
+    ).toMatchObject({
+      calls: [{ method: "filesystem.exists" }],
+    });
+    expect(
+      parseToolArgs("filesystem.inspect", {
+        path: "C:\\\\tmp",
+        paths: ["C:\\\\tmp\\\\a"],
+      }),
+    ).toEqual({
+      path: "C:\\\\tmp",
+      paths: ["C:\\\\tmp\\\\a"],
+    });
+  });
+
+  it("accepts empty object for browser.list", () => {
+    expect(parseToolArgs("browser.list", {})).toEqual({});
   });
 
   it("exposes zod schemas for every registered tool", () => {

@@ -36,9 +36,17 @@ public sealed class PermissionPolicy
         [Capabilities.ProcessTerminate] = PermissionDecisionKind.Ask,
         [Capabilities.ShellExecute] = PermissionDecisionKind.Ask,
         [Capabilities.PlanExecute] = PermissionDecisionKind.Allow,
+        [Capabilities.BrowserObserve] = PermissionDecisionKind.Allow,
+        [Capabilities.BrowserInteract] = PermissionDecisionKind.Allow,
+        [Capabilities.AdapterObserve] = PermissionDecisionKind.Allow,
+        [Capabilities.AdapterInteract] = PermissionDecisionKind.Ask,
+        [Capabilities.InputKeyboard] = PermissionDecisionKind.Ask,
+        [Capabilities.InputMouse] = PermissionDecisionKind.Ask,
+        [Capabilities.VisionCapture] = PermissionDecisionKind.Ask,
         [Capabilities.SystemAdmin] = PermissionDecisionKind.Deny
     };
 
+    public int SchemaVersion { get; set; } = 1;
     public List<PathRule> PathRules { get; } = new();
     public List<AppPermissionRule> AppRules { get; } = new();
 
@@ -79,7 +87,37 @@ public sealed class PermissionPolicy
             Observe = PermissionDecisionKind.Deny,
             Interact = PermissionDecisionKind.Deny
         });
+        policy.SchemaVersion = 1;
         return policy;
+    }
+
+    public static PermissionPolicy Migrate(PermissionPolicy? incoming)
+    {
+        var fresh = CreateDefault();
+        if (incoming is null)
+        {
+            return fresh;
+        }
+
+        foreach (var kv in incoming.CapabilityDefaults)
+        {
+            fresh.CapabilityDefaults[kv.Key] = kv.Value;
+        }
+
+        foreach (var key in fresh.CapabilityDefaults.Keys.ToArray())
+        {
+            if (!incoming.CapabilityDefaults.ContainsKey(key))
+            {
+                // keep fresh default for newly introduced capabilities
+            }
+        }
+
+        fresh.PathRules.Clear();
+        fresh.PathRules.AddRange(incoming.PathRules.Count > 0 ? incoming.PathRules : CreateDefault().PathRules);
+        fresh.AppRules.Clear();
+        fresh.AppRules.AddRange(incoming.AppRules.Count > 0 ? incoming.AppRules : CreateDefault().AppRules);
+        fresh.SchemaVersion = 1;
+        return fresh;
     }
 }
 
@@ -90,7 +128,7 @@ public sealed class PermissionEngine
 
     public PermissionEngine(PermissionPolicy? policy = null)
     {
-        _policy = policy ?? PermissionPolicy.CreateDefault();
+        _policy = PermissionPolicy.Migrate(policy);
     }
 
     public PermissionPolicy Policy => _policy;
@@ -105,16 +143,52 @@ public sealed class PermissionEngine
             CommandNames.ProcessLaunch => Capabilities.ProcessLaunch,
             CommandNames.ProcessList => Capabilities.ProcessObserve,
             CommandNames.FilesystemExists or CommandNames.FilesystemList or CommandNames.FilesystemReadText
+                or CommandNames.FilesystemStat or CommandNames.FilesystemInspect
                 => Capabilities.FilesystemRead,
             CommandNames.FilesystemWriteText => Capabilities.FilesystemWrite,
-            CommandNames.DesktopGetState or CommandNames.DesktopGetCapabilities => Capabilities.DesktopObserve,
+            CommandNames.DesktopGetState or CommandNames.DesktopGetCapabilities
+                or CommandNames.DesktopDescribe or CommandNames.DesktopGetGraph
+                or CommandNames.DesktopBatch or CommandNames.DesktopDiff
+                or CommandNames.EventsSubscribe or CommandNames.EventsPoll or CommandNames.EventsUnsubscribe
+                or CommandNames.SystemUpdateCheck or CommandNames.SystemTelemetryGet
+                or CommandNames.SystemSecurityReview or CommandNames.SystemIntegrity
+                => Capabilities.DesktopObserve,
             CommandNames.WindowWaitFor => Capabilities.WindowObserve,
             CommandNames.UiWaitFor => Capabilities.UiObserve,
             CommandNames.PlanExecute or CommandNames.PlanGet or CommandNames.PlanCancel => Capabilities.PlanExecute,
-            CommandNames.SystemPing or CommandNames.SessionCreate or CommandNames.SessionGet
+            CommandNames.BrowserList or CommandNames.BrowserTabs or CommandNames.BrowserGetTab
+                or CommandNames.BrowserQuery or CommandNames.BrowserQueryAll
+                or CommandNames.BrowserGetText or CommandNames.BrowserGetDom or CommandNames.BrowserGetAccessibilityTree
+                or CommandNames.BrowserWaitFor or CommandNames.BrowserWaitForNavigation or CommandNames.BrowserWaitForNetworkIdle
+                or CommandNames.BrowserGetDownloads
+                => Capabilities.BrowserObserve,
+            CommandNames.BrowserOpenTab or CommandNames.BrowserCloseTab or CommandNames.BrowserNavigate
+                or CommandNames.BrowserBack or CommandNames.BrowserForward or CommandNames.BrowserReload
+                or CommandNames.BrowserClick or CommandNames.BrowserFill or CommandNames.BrowserSelect or CommandNames.BrowserFocus
+                => Capabilities.BrowserInteract,
+            CommandNames.SystemPing or CommandNames.SessionCreate or CommandNames.SessionGet or CommandNames.SessionList
                 or CommandNames.PermissionApprove or CommandNames.PermissionDeny or CommandNames.PermissionPending
-                or CommandNames.AuditList or CommandNames.SystemEmergencyStop or CommandNames.SystemEmergencyStopClear
+                or CommandNames.PermissionPolicyGet or CommandNames.PermissionPolicySet
+                or CommandNames.AuditList or CommandNames.SystemStatus
+                or CommandNames.SystemEmergencyStop or CommandNames.SystemEmergencyStopClear
+                or CommandNames.SystemUpdateApply or CommandNames.SystemTelemetrySet
                 => Capabilities.DesktopObserve,
+            CommandNames.AdapterList or CommandNames.AdapterCapabilities
+                or CommandNames.BlenderGetScene or CommandNames.BlenderGetObjects
+                or CommandNames.VsCodeGetWorkspace or CommandNames.VisualStudioGetSolution
+                => Capabilities.AdapterObserve,
+            CommandNames.AdapterExecute
+                or CommandNames.BlenderOpen or CommandNames.BlenderSelectObject or CommandNames.BlenderExecutePython
+                or CommandNames.BlenderExport or CommandNames.BlenderSave
+                or CommandNames.VsCodeOpenFile or CommandNames.VsCodeOpenFolder or CommandNames.VsCodeExecuteCommand
+                or CommandNames.VisualStudioBuild or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
+                => Capabilities.AdapterInteract,
+            CommandNames.InputMouseMove or CommandNames.InputMouseClick or CommandNames.InputMouseDrag or CommandNames.InputScroll
+                => Capabilities.InputMouse,
+            CommandNames.InputKey or CommandNames.InputHotkey or CommandNames.InputType
+                => Capabilities.InputKeyboard,
+            CommandNames.VisionCaptureScreen or CommandNames.VisionCaptureWindow or CommandNames.VisionCaptureRegion
+                => Capabilities.VisionCapture,
             _ => Capabilities.SystemAdmin
         };
 
@@ -123,15 +197,46 @@ public sealed class PermissionEngine
         {
             CommandNames.WindowList or CommandNames.UiGetTree or CommandNames.UiFind or CommandNames.UiGetText
                 or CommandNames.FilesystemExists or CommandNames.FilesystemList or CommandNames.FilesystemReadText
-                or CommandNames.SystemPing or CommandNames.AuditList
-                or CommandNames.SessionGet or CommandNames.PermissionPending
+                or CommandNames.FilesystemStat or CommandNames.FilesystemInspect
+                or CommandNames.SystemPing or CommandNames.AuditList or CommandNames.SystemStatus
+                or CommandNames.SessionGet or CommandNames.SessionList or CommandNames.PermissionPending
+                or CommandNames.PermissionPolicyGet
                 or CommandNames.DesktopGetState or CommandNames.DesktopGetCapabilities
+                or CommandNames.DesktopDescribe or CommandNames.DesktopGetGraph
+                or CommandNames.DesktopBatch or CommandNames.DesktopDiff
+                or CommandNames.EventsSubscribe or CommandNames.EventsPoll or CommandNames.EventsUnsubscribe
+                or CommandNames.SystemUpdateCheck or CommandNames.SystemTelemetryGet
+                or CommandNames.SystemSecurityReview or CommandNames.SystemIntegrity
                 or CommandNames.WindowWaitFor or CommandNames.UiWaitFor or CommandNames.ProcessList
+                or CommandNames.BrowserList or CommandNames.BrowserTabs or CommandNames.BrowserGetTab
+                or CommandNames.BrowserQuery or CommandNames.BrowserQueryAll
+                or CommandNames.BrowserGetText or CommandNames.BrowserGetDom or CommandNames.BrowserGetAccessibilityTree
+                or CommandNames.BrowserWaitFor or CommandNames.BrowserWaitForNavigation or CommandNames.BrowserWaitForNetworkIdle
+                or CommandNames.BrowserGetDownloads
+                or CommandNames.AdapterList or CommandNames.AdapterCapabilities
+                or CommandNames.BlenderGetScene or CommandNames.BlenderGetObjects
+                or CommandNames.VsCodeGetWorkspace or CommandNames.VisualStudioGetSolution
                 => RiskClass.Read,
             CommandNames.WindowFocus or CommandNames.UiInvoke or CommandNames.UiSetValue or CommandNames.ProcessLaunch
                 or CommandNames.PlanExecute or CommandNames.PlanCancel or CommandNames.FilesystemWriteText
+                or CommandNames.BrowserOpenTab or CommandNames.BrowserCloseTab or CommandNames.BrowserNavigate
+                or CommandNames.BrowserBack or CommandNames.BrowserForward or CommandNames.BrowserReload
+                or CommandNames.BrowserClick or CommandNames.BrowserFill or CommandNames.BrowserSelect or CommandNames.BrowserFocus
+                or CommandNames.PermissionPolicySet
+                or CommandNames.AdapterExecute
+                or CommandNames.BlenderOpen or CommandNames.BlenderSelectObject or CommandNames.BlenderExecutePython
+                or CommandNames.BlenderExport or CommandNames.BlenderSave
+                or CommandNames.VsCodeOpenFile or CommandNames.VsCodeOpenFolder or CommandNames.VsCodeExecuteCommand
+                or CommandNames.VisualStudioBuild or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
                 => RiskClass.LowRiskWrite,
-            CommandNames.SystemEmergencyStop or CommandNames.SystemEmergencyStopClear => RiskClass.Privileged,
+            CommandNames.InputMouseMove or CommandNames.InputScroll => RiskClass.LowRiskWrite,
+            CommandNames.InputMouseClick or CommandNames.InputMouseDrag
+                or CommandNames.InputKey or CommandNames.InputHotkey or CommandNames.InputType
+                => RiskClass.HighRiskWrite,
+            CommandNames.VisionCaptureScreen or CommandNames.VisionCaptureWindow or CommandNames.VisionCaptureRegion
+                => RiskClass.Read,
+            CommandNames.SystemEmergencyStop or CommandNames.SystemEmergencyStopClear
+                or CommandNames.SystemUpdateApply or CommandNames.SystemTelemetrySet => RiskClass.Privileged,
             _ => RiskClass.HighRiskWrite
         };
 
@@ -251,6 +356,91 @@ public sealed class PermissionEngine
                 _alwaysGrants[capability] = PermissionDecisionKind.Allow;
                 break;
         }
+    }
+
+    public object SnapshotPolicy() => new
+    {
+        capabilities = _policy.CapabilityDefaults
+            .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(kv => new { capability = kv.Key, decision = kv.Value.ToString() })
+            .ToArray(),
+        schemaVersion = _policy.SchemaVersion,
+        pathRules = _policy.PathRules
+            .Select(r => new
+            {
+                pathPrefix = r.PathPrefix,
+                allowRead = r.AllowRead,
+                allowWrite = r.AllowWrite,
+                deny = r.Deny
+            })
+            .ToArray(),
+        appRules = _policy.AppRules
+            .Select(r => new
+            {
+                processName = r.ProcessName,
+                observe = r.Observe.ToString(),
+                interact = r.Interact.ToString()
+            })
+            .ToArray()
+    };
+
+    public bool SetCapabilityDefault(string capability, PermissionDecisionKind decision)
+    {
+        if (string.IsNullOrWhiteSpace(capability))
+        {
+            return false;
+        }
+
+        _policy.CapabilityDefaults[capability.Trim()] = decision;
+        return true;
+    }
+
+    public bool UpsertAppRule(string processName, PermissionDecisionKind observe, PermissionDecisionKind interact)
+    {
+        if (string.IsNullOrWhiteSpace(processName))
+        {
+            return false;
+        }
+
+        var existing = _policy.AppRules.FirstOrDefault(r =>
+            string.Equals(r.ProcessName, processName, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            _policy.AppRules.Remove(existing);
+        }
+
+        _policy.AppRules.Add(new AppPermissionRule
+        {
+            ProcessName = processName.Trim(),
+            Observe = observe,
+            Interact = interact
+        });
+        return true;
+    }
+
+    public bool UpsertPathRule(string pathPrefix, bool allowRead, bool allowWrite, bool deny)
+    {
+        if (string.IsNullOrWhiteSpace(pathPrefix))
+        {
+            return false;
+        }
+
+        var full = Path.GetFullPath(pathPrefix);
+        var existing = _policy.PathRules.FirstOrDefault(r =>
+            string.Equals(r.PathPrefix, full, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            _policy.PathRules.Remove(existing);
+        }
+
+        _policy.PathRules.Add(new PathRule
+        {
+            PathPrefix = full,
+            AllowRead = allowRead,
+            AllowWrite = allowWrite,
+            Deny = deny
+        });
+        return true;
     }
 
     private PermissionEvaluation? EvaluatePath(string? path, string capability)

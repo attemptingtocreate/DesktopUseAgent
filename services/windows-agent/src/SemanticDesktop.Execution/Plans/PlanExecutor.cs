@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using SemanticDesktop.Core.Errors;
 using SemanticDesktop.Core.Plans;
+using SemanticDesktop.Core.Workflow;
 using SemanticDesktop.Execution.Conditions;
 using SemanticDesktop.Execution.References;
 
@@ -67,6 +68,14 @@ public sealed class PlanExecutor
             Status = PlanStatus.Running,
             StartedAt = DateTimeOffset.UtcNow
         };
+        IReadOnlyList<PlanStep> steps = plan.Steps;
+        if (options.Optimize)
+        {
+            var fused = CommandFusion.FuseSteps(plan.Steps);
+            state.FusedCount = Math.Max(0, plan.Steps.Count - fused.Count);
+            steps = fused;
+        }
+
         _plans[planId] = state;
 
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -74,29 +83,70 @@ public sealed class PlanExecutor
 
         try
         {
-            foreach (var step in plan.Steps)
+            var i = 0;
+            while (i < steps.Count)
             {
                 linked.Token.ThrowIfCancellationRequested();
-                var stepResult = await ExecuteStepAsync(step, state, options, linked.Token).ConfigureAwait(false);
-                state.Steps.Add(stepResult);
-
-                if (stepResult.Status == PlanStatus.Succeeded || stepResult.Status == PlanStatus.Skipped)
+                var group = TakeParallelGroup(steps, i, options);
+                if (group.Count > 1)
                 {
-                    if (stepResult.Output.HasValue)
+                    state.ParallelGroupCount++;
+                    var results = await Task.WhenAll(group.Select(step =>
+                            ExecuteStepAsync(step, state, options, linked.Token)))
+                        .ConfigureAwait(false);
+                    var failed = false;
+                    for (var g = 0; g < group.Count; g++)
                     {
-                        state.Outputs[step.Id] = stepResult.Output.Value.Clone();
+                        var step = group[g];
+                        var stepResult = results[g];
+                        state.Steps.Add(stepResult);
+                        if (stepResult.Status == PlanStatus.Succeeded || stepResult.Status == PlanStatus.Skipped)
+                        {
+                            if (stepResult.Output.HasValue)
+                            {
+                                state.Outputs[step.Id] = stepResult.Output.Value.Clone();
+                            }
+
+                            continue;
+                        }
+
+                        failed = true;
+                        state.Status = stepResult.Status == PlanStatus.Cancelled ? PlanStatus.Cancelled : PlanStatus.Failed;
+                        state.Error = stepResult.Error;
                     }
 
+                    if (failed && options.StopOnFailure)
+                    {
+                        break;
+                    }
+
+                    i += group.Count;
                     continue;
                 }
 
-                state.Status = stepResult.Status == PlanStatus.Cancelled ? PlanStatus.Cancelled : PlanStatus.Failed;
-                state.Error = stepResult.Error;
-                if (!string.Equals(step.OnFailure, "continue", StringComparison.OrdinalIgnoreCase) &&
-                    options.StopOnFailure)
+                var single = steps[i];
+                var singleResult = await ExecuteStepAsync(single, state, options, linked.Token).ConfigureAwait(false);
+                state.Steps.Add(singleResult);
+
+                if (singleResult.Status == PlanStatus.Succeeded || singleResult.Status == PlanStatus.Skipped)
                 {
-                    break;
+                    if (singleResult.Output.HasValue)
+                    {
+                        state.Outputs[single.Id] = singleResult.Output.Value.Clone();
+                    }
                 }
+                else
+                {
+                    state.Status = singleResult.Status == PlanStatus.Cancelled ? PlanStatus.Cancelled : PlanStatus.Failed;
+                    state.Error = singleResult.Error;
+                    if (!string.Equals(single.OnFailure, "continue", StringComparison.OrdinalIgnoreCase) &&
+                        options.StopOnFailure)
+                    {
+                        break;
+                    }
+                }
+
+                i++;
             }
 
             if (state.Status == PlanStatus.Running)
@@ -122,6 +172,38 @@ public sealed class PlanExecutor
         }
 
         return state;
+    }
+
+    private static List<PlanStep> TakeParallelGroup(IReadOnlyList<PlanStep> steps, int start, PlanOptions options)
+    {
+        var first = steps[start];
+        var group = new List<PlanStep> { first };
+        if (!options.ParallelSafeReads || !CanParallel(first))
+        {
+            return group;
+        }
+
+        for (var i = start + 1; i < steps.Count; i++)
+        {
+            var step = steps[i];
+            if (!CanParallel(step) || ReferencesAny(step, group))
+            {
+                break;
+            }
+
+            group.Add(step);
+        }
+
+        return group;
+    }
+
+    private static bool CanParallel(PlanStep step) =>
+        ReadSafety.IsParallelSafe(step.Action) && step.When is null && step.WaitAfter is null;
+
+    private static bool ReferencesAny(PlanStep step, List<PlanStep> group)
+    {
+        var text = step.Args is null ? "" : JsonSerializer.Serialize(step.Args);
+        return group.Any(g => text.Contains("$steps." + g.Id, StringComparison.Ordinal));
     }
 
     private async Task<StepExecutionResult> ExecuteStepAsync(

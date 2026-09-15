@@ -15,5 +15,7 @@
     <ProjectReference Include="..\SemanticDesktop.Files\SemanticDesktop.Files.csproj" />
     <ProjectReference Include="..\SemanticDesktop.Permissions\SemanticDesktop.Permissions.csproj" />
     <ProjectReference Include="..\SemanticDesktop.Audit\SemanticDesktop.Audit.csproj" />
+    <ProjectReference Include="..\SemanticDesktop.Browser\SemanticDesktop.Browser.csproj" />
+    <ProjectReference Include="..\SemanticDesktop.Adapters\SemanticDesktop.Adapters.csproj" />
   </ItemGroup>
 </Project>

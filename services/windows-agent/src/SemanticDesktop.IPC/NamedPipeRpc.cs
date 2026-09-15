@@ -45,9 +45,9 @@ public sealed class NamedPipeServer : IAsyncDisposable
                 pipe = new NamedPipeServerStream(
                     _pipeName,
                     PipeDirection.InOut,
-                    1,
+                    NamedPipeServerStream.MaxAllowedServerInstances,
                     PipeTransmissionMode.Byte,
-                    PipeOptions.Asynchronous);
+                    PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
 
                 lock (_gate)
                 {
@@ -64,8 +64,9 @@ public sealed class NamedPipeServer : IAsyncDisposable
                     }
                 }
 
-                await HandleClientAsync(pipe, cancellationToken).ConfigureAwait(false);
+                var connected = pipe;
                 pipe = null;
+                _ = Task.Run(() => HandleClientAsync(connected, cancellationToken), CancellationToken.None);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -215,9 +216,24 @@ public sealed class NamedPipeClient : IAsyncDisposable
         _pipeName = pipeName;
     }
 
+    public static async Task<JsonElement> CallOnceAsync(
+        string method,
+        object? parameters,
+        CancellationToken cancellationToken,
+        string pipeName = PipeNames.Default,
+        int connectTimeoutMs = 5000,
+        int responseTimeoutMs = 10000)
+    {
+        await using var client = new NamedPipeClient(pipeName);
+        await client.ConnectAsync(cancellationToken, connectTimeoutMs).ConfigureAwait(false);
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(responseTimeoutMs);
+        return await client.SendAsync(method, parameters, timeoutCts.Token).ConfigureAwait(false);
+    }
+
     public async Task ConnectAsync(CancellationToken cancellationToken, int timeoutMs = 5000)
     {
-        _pipe = new NamedPipeClientStream(".", _pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+        _pipe = new NamedPipeClientStream(".", _pipeName, PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(timeoutMs);
         try

@@ -33,6 +33,9 @@ public sealed class SessionManager
     public AgentSession? Get(string sessionId) =>
         _sessions.TryGetValue(sessionId, out var session) ? session : null;
 
+    public IReadOnlyList<AgentSession> List() =>
+        _sessions.Values.OrderBy(s => s.CreatedAt).ToList();
+
     public bool Terminate(string sessionId) => _sessions.TryRemove(sessionId, out _);
 }
 

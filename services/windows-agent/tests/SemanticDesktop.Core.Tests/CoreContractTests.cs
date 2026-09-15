@@ -14,6 +14,8 @@ public class CoreContractTests
         Assert.StartsWith("win_", HandleRegistry.CreateId(HandleKind.Window));
         Assert.StartsWith("uia_", HandleRegistry.CreateId(HandleKind.Element));
         Assert.StartsWith("proc_", HandleRegistry.CreateId(HandleKind.Process));
+        Assert.StartsWith("brw_", HandleRegistry.CreateId(HandleKind.Browser));
+        Assert.StartsWith("tab_", HandleRegistry.CreateId(HandleKind.Tab));
     }
 
     [Fact]

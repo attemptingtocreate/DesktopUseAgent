@@ -38,6 +38,13 @@ public static class Capabilities
     public const string ProcessTerminate = "process.terminate";
     public const string ShellExecute = "shell.execute";
     public const string PlanExecute = "plan.execute";
+    public const string BrowserObserve = "browser.observe";
+    public const string BrowserInteract = "browser.interact";
+    public const string AdapterObserve = "adapter.observe";
+    public const string AdapterInteract = "adapter.interact";
+    public const string InputKeyboard = "input.keyboard";
+    public const string InputMouse = "input.mouse";
+    public const string VisionCapture = "vision.capture";
     public const string SystemAdmin = "system.elevated";
 }
 

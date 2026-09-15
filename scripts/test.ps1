@@ -6,3 +6,13 @@ if (-not (Test-Path $dotnet)) { $dotnet = "dotnet" }
 if ($LASTEXITCODE -ne 0) {
   & $dotnet test (Join-Path $root "services\windows-agent\SemanticDesktop.Agent.sln") -c Debug
 }
+if (Test-Path (Join-Path $root "apps\mcp-server\package.json")) {
+  Push-Location (Join-Path $root "apps\mcp-server")
+  try {
+    if (Test-Path "node_modules") {
+      npm test --silent
+    }
+  } finally {
+    Pop-Location
+  }
+}

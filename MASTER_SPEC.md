@@ -171,14 +171,13 @@ The entire project must preserve this principle.
 Use:
 
 ```text
-Frontend:
-- Tauri 2
-- React
-- TypeScript
-- Vite
-- Tailwind CSS
+Frontend / Control Center:
+- WinUI 3
+- C# / .NET 8
+- Windows App SDK
+- Native Windows desktop application
 
-Windows service:
+Windows service / agent:
 - C#
 - .NET 8 initially
 - Windows-only target
@@ -188,6 +187,7 @@ MCP server:
 - TypeScript
 - Node.js
 - official/current MCP SDK
+  (kept as-is; language consistency alone is not a reason to rewrite)
 
 Browser:
 - Chrome DevTools Protocol
@@ -214,13 +214,13 @@ Tests:
 - dedicated UIA fixture application
 
 Packaging:
-- Tauri installer
+- WinUI / MSIX or unpackaged Windows App SDK installer
 - bundled Windows agent/service
 ```
 
-Do not place core automation logic inside React.
+Do not place core automation logic inside the desktop UI.
 
-React is presentation only.
+The control center is presentation and operator controls only; all automation and permission decisions go through the agent IPC boundary.
 
 ---
 
@@ -271,21 +271,9 @@ semantic-desktop/
 ├── apps/
 │   │
 │   ├── desktop/
-│   │   ├── src/
-│   │   │   ├── app/
-│   │   │   ├── components/
-│   │   │   ├── features/
-│   │   │   │   ├── activity/
-│   │   │   │   ├── permissions/
-│   │   │   │   ├── connections/
-│   │   │   │   ├── applications/
-│   │   │   │   ├── logs/
-│   │   │   │   └── settings/
-│   │   │   ├── hooks/
-│   │   │   ├── lib/
-│   │   │   └── types/
-│   │   ├── src-tauri/
-│   │   └── package.json
+│   │   ├── SemanticDesktop.ControlCenter/          # WinUI 3 control center
+│   │   ├── SemanticDesktop.ControlCenter.Client/   # Named-pipe UI client facade
+│   │   └── SemanticDesktop.ControlCenter.Tests/
 │   │
 │   └── mcp-server/
 │       ├── src/
@@ -2941,7 +2929,7 @@ Normal web forms can be completed without screenshots.
 
 # 72. Phase 6 — Desktop Control Center
 
-Build polished Tauri UI.
+Build polished WinUI 3 / C# native Windows control center.
 
 Features:
 

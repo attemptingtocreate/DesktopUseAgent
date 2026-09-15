@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Window
+    x:Class="SemanticDesktop.ControlCenter.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Semantic Desktop Control Center">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="#1B1F24" Padding="16,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <TextBlock Text="Semantic Desktop" FontSize="18" FontWeight="SemiBold" Foreground="White" />
+                    <TextBlock x:Name="StatusText" Text="Connecting…" Foreground="#A8B3C0" VerticalAlignment="Center" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="Refresh" Click="Refresh_Click" Margin="0,0,8,0" />
+                <Button Grid.Column="2" x:Name="EmergencyButton" Content="EMERGENCY STOP"
+                        Click="Emergency_Click" Background="#B42318" Foreground="White"
+                        KeyboardAcceleratorPlacementMode="Hidden">
+                    <Button.KeyboardAccelerators>
+                        <KeyboardAccelerator Modifiers="Control,Menu,Shift" Key="Escape" Invoked="EmergencyHotkey_Invoked" />
+                    </Button.KeyboardAccelerators>
+                </Button>
+            </Grid>
+        </Border>
+
+        <NavigationView
+            x:Name="Nav"
+            Grid.Row="1"
+            PaneDisplayMode="Left"
+            IsSettingsVisible="False"
+            IsBackButtonVisible="Collapsed"
+            SelectionChanged="Nav_SelectionChanged">
+            <NavigationView.MenuItems>
+                <NavigationViewItem Content="Dashboard" Tag="dashboard" IsSelected="True" />
+                <NavigationViewItem Content="Live Activity" Tag="activity" />
+                <NavigationViewItem Content="Permissions" Tag="permissions" />
+                <NavigationViewItem Content="Connections" Tag="connections" />
+                <NavigationViewItem Content="Logs" Tag="logs" />
+                <NavigationViewItem Content="Inspector" Tag="inspector" />
+                <NavigationViewItem Content="Settings" Tag="settings" />
+            </NavigationView.MenuItems>
+            <ScrollViewer Padding="20">
+                <StackPanel x:Name="ContentHost" Spacing="12" />
+            </ScrollViewer>
+        </NavigationView>
+    </Grid>
+</Window>

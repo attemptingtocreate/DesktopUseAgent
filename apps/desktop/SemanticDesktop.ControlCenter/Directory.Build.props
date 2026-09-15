@@ -1,0 +1,7 @@
+<Project>
+  <!-- Prefer target overrides; keep stub path only as fallback if needed. -->
+  <PropertyGroup>
+    <AppxGeneratePriEnabled>false</AppxGeneratePriEnabled>
+    <AppxGeneratePrisForPortableLibrariesEnabled>false</AppxGeneratePrisForPortableLibrariesEnabled>
+  </PropertyGroup>
+</Project>

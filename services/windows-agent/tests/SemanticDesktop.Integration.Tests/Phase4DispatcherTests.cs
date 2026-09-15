@@ -10,7 +10,7 @@ namespace SemanticDesktop.Integration.Tests;
 public class Phase4DispatcherTests
 {
     [Fact]
-    public async Task DesktopGetCapabilities_IncludesCoreTools_AndBrowserFlagsFalse()
+    public async Task DesktopGetCapabilities_IncludesCoreTools_AndBrowserChromeWhenInstalled()
     {
         using var dispatcher = new CommandDispatcher();
         var result = await dispatcher.DispatchAsync(new RpcRequest
@@ -26,10 +26,11 @@ public class Phase4DispatcherTests
         var tools = data.GetProperty("tools").EnumerateArray().Select(t => t.GetString()).ToHashSet();
         Assert.Contains(CommandNames.WindowList, tools);
         Assert.Contains(CommandNames.DesktopGetState, tools);
+        Assert.Contains(CommandNames.BrowserNavigate, tools);
+        Assert.Contains(CommandNames.BrowserQuery, tools);
 
         var browser = data.GetProperty("browser");
-        Assert.False(browser.GetProperty("chrome").GetBoolean());
-        Assert.False(browser.GetProperty("edge").GetBoolean());
+        Assert.True(browser.GetProperty("chrome").GetBoolean());
         Assert.False(browser.GetProperty("firefox").GetBoolean());
     }
 

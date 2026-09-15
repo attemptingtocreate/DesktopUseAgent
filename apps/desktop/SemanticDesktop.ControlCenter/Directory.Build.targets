@@ -1,0 +1,51 @@
+<Project>
+  <!-- Replace Appx packaging targets that require Visual Studio MSBuild tasks. -->
+  <PropertyGroup>
+    <AppxGeneratePriEnabled>false</AppxGeneratePriEnabled>
+    <AppxGeneratePrisForPortableLibrariesEnabled>false</AppxGeneratePrisForPortableLibrariesEnabled>
+    <AppxGetPackagePropertiesEnabled>false</AppxGetPackagePropertiesEnabled>
+    <IncludeProjectPriFile>false</IncludeProjectPriFile>
+    <DefaultResourceLanguage Condition="'$(DefaultResourceLanguage)' == ''">en-US</DefaultResourceLanguage>
+    <PackageArchitecture Condition="'$(PackageArchitecture)' == ''">x64</PackageArchitecture>
+  </PropertyGroup>
+
+  <Target Name="_GetDefaultResourceLanguage">
+    <PropertyGroup>
+      <DefaultResourceLanguage Condition="'$(DefaultLanguage)' != ''">$(DefaultLanguage)</DefaultResourceLanguage>
+      <DefaultResourceLanguage Condition="'$(DefaultResourceLanguage)' == ''">en-US</DefaultResourceLanguage>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="_GetProjectArchitecture" Returns="@(ProjectArchitecture)">
+    <ItemGroup>
+      <ProjectArchitecture Include="$(Platform)" Condition="'$(Platform)' != '' and '$(Platform)' != 'AnyCPU'" />
+      <ProjectArchitecture Include="x64" Condition="'@(ProjectArchitecture)' == ''" />
+    </ItemGroup>
+    <PropertyGroup>
+      <PackageArchitecture>@(ProjectArchitecture)</PackageArchitecture>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="_ValidateConfiguration" />
+
+  <Target Name="AddPriPayloadFilesToCopyToOutputDirectoryItems" />
+
+  <Target Name="CopyLocalFilesOutputGroup"
+          DependsOnTargets="$(CopyLocalFilesOutputGroupDependsOn)"
+          Returns="@(CopyLocalFilesOutputGroupOutput)">
+    <ItemGroup>
+      <CopyLocalFilesOutputGroupOutput Include="@(ReferenceCopyLocalPaths)"
+                                       Condition="'%(ReferenceCopyLocalPaths.Extension)' != '.xml' or '$(AppxCopyLocalFilesOutputGroupIncludeXmlFiles)' == 'true'">
+        <TargetPath>%(ReferenceCopyLocalPaths.DestinationSubDirectory)%(ReferenceCopyLocalPaths.Filename)%(ReferenceCopyLocalPaths.Extension)</TargetPath>
+      </CopyLocalFilesOutputGroupOutput>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="GetMrtPackagingOutputs"
+          Returns="@(_PackagingOutputsExpanded)"
+          DependsOnTargets="$(GetPackagingOutputsDependsOn)">
+    <ItemGroup>
+      <_PackagingOutputsExpanded Include="@(BuiltProjectOutputGroupOutput);@(DebugSymbolsProjectOutputGroupOutput);@(ContentFilesProjectOutputGroupOutput)" />
+    </ItemGroup>
+  </Target>
+</Project>

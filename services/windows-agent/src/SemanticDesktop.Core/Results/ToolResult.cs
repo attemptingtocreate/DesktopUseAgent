@@ -76,9 +76,25 @@ public sealed class PerformanceMeta
     public int ElementsInspected { get; init; }
     public bool? CacheHit { get; init; }
     public required string Provider { get; init; }
+    public string? FallbackReason { get; init; }
+    public string? VisionReason { get; init; }
 
-    public override string ToString() =>
-        $"{Operation}\n{DurationMs} ms\n{ElementsInspected} nodes inspected\ncache hit: {(CacheHit.HasValue ? CacheHit.Value.ToString().ToLowerInvariant() : "n/a")}\nprovider: {Provider}";
+    public override string ToString()
+    {
+        var text =
+            $"{Operation}\n{DurationMs} ms\n{ElementsInspected} nodes inspected\ncache hit: {(CacheHit.HasValue ? CacheHit.Value.ToString().ToLowerInvariant() : "n/a")}\nprovider: {Provider}";
+        if (!string.IsNullOrWhiteSpace(FallbackReason))
+        {
+            text += $"\nfallback_reason: {FallbackReason}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(VisionReason))
+        {
+            text += $"\nvision_reason: {VisionReason}";
+        }
+
+        return text;
+    }
 }
 
 public sealed class ActionResult

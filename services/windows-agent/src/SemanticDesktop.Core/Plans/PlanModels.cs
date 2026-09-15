@@ -14,6 +14,8 @@ public sealed class PlanOptions
 {
     public bool StopOnFailure { get; set; } = true;
     public int DefaultTimeoutMs { get; set; } = 30_000;
+    public bool Optimize { get; set; } = true;
+    public bool ParallelSafeReads { get; set; } = true;
 }
 
 public sealed class PlanStep
@@ -62,6 +64,8 @@ public sealed class PlanExecutionState
     public List<StepExecutionResult> Steps { get; } = new();
     public Dictionary<string, JsonElement> Outputs { get; } = new(StringComparer.Ordinal);
     public ErrorInfoDto? Error { get; set; }
+    public int FusedCount { get; set; }
+    public int ParallelGroupCount { get; set; }
 }
 
 public sealed class StepExecutionResult

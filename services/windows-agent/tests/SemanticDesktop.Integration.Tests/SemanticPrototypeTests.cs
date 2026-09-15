@@ -29,7 +29,8 @@ public sealed class FixtureHost : IAsyncLifetime
         var fixtureProject = ResolveFixtureProject();
         Assert.True(File.Exists(fixtureProject), $"Fixture project missing: {fixtureProject}");
 
-        var build = Process.Start(new ProcessStartInfo("dotnet", $"build \"{fixtureProject}\" -c Debug")
+        var dotnet = ResolveDotnetPath();
+        var build = Process.Start(new ProcessStartInfo(dotnet, $"build \"{fixtureProject}\" -c Debug")
         {
             UseShellExecute = false,
             RedirectStandardOutput = true,
@@ -116,6 +117,23 @@ public sealed class FixtureHost : IAsyncLifetime
         }
 
         throw new FileNotFoundException("Could not locate fixtures/uia-test-app/UiaTestApp.csproj");
+    }
+
+    private static string ResolveDotnetPath()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            var candidate = Path.Combine(dir.FullName, ".tools", "dotnet", "dotnet.exe");
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            dir = dir.Parent;
+        }
+
+        return "dotnet";
     }
 }
 

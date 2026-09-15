@@ -74,3 +74,42 @@ public sealed class ProcessInfo
     public required string Name { get; init; }
     public string? Path { get; init; }
 }
+
+public sealed class BrowserInfo
+{
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+    public required string Path { get; init; }
+    public int? DebugPort { get; init; }
+    public bool Running { get; init; }
+}
+
+public sealed class BrowserTabInfo
+{
+    public required string Id { get; init; }
+    public string? BrowserId { get; init; }
+    public required string TargetId { get; init; }
+    public string? Url { get; init; }
+    public string? Title { get; init; }
+    public bool Active { get; init; }
+}
+
+public sealed class DomElementInfo
+{
+    public required string Id { get; init; }
+    public string? Tag { get; init; }
+    public string? Role { get; init; }
+    public string? Name { get; init; }
+    public string? Text { get; init; }
+    public string? Value { get; init; }
+}
+
+public sealed class BrowserDownloadInfo
+{
+    public required string Guid { get; init; }
+    public string? Url { get; init; }
+    public string? SuggestedFilename { get; init; }
+    public string? State { get; init; }
+    public long? ReceivedBytes { get; init; }
+    public long? TotalBytes { get; init; }
+}

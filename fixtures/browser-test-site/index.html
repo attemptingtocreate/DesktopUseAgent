@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Semantic Desktop Browser Fixture</title>
+</head>
+<body>
+  <h1>Browser Fixture Home</h1>
+  <nav>
+    <a href="form.html" data-testid="nav-form">Open Form</a>
+    <a href="download.txt" download="sample.txt" data-testid="download-link" role="link" aria-label="Download sample">Download sample</a>
+  </nav>
+  <button id="show-delayed" data-testid="show-delayed" role="button" aria-label="Show delayed">Show delayed</button>
+  <div id="delayed-host"></div>
+  <script>
+    document.getElementById('show-delayed').addEventListener('click', () => {
+      setTimeout(() => {
+        const el = document.createElement('div');
+        el.id = 'delayed-ready';
+        el.setAttribute('data-testid', 'delayed-ready');
+        el.setAttribute('role', 'status');
+        el.setAttribute('aria-label', 'Delayed ready');
+        el.textContent = 'Delayed element ready';
+        document.getElementById('delayed-host').appendChild(el);
+      }, 400);
+    });
+  </script>
+</body>
+</html>
