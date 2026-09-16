@@ -950,7 +950,8 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
         ContentHost.Children.Add(Header("ChatGPT Secure MCP Tunnel"));
         ContentHost.Children.Add(Card(
             "Connect ChatGPT to the local semantic-desktop MCP server through OpenAI's Secure MCP Tunnel. " +
-            "This is independent of native API-key or Ollama chat providers in DesktopUseAgent."));
+            "Turn on the switch below to start tunnel-client with DesktopUseAgent (no separate PowerShell window required). " +
+            "Optional: show a console window if you want the same visible terminal as scripts\\start-chatgpt-tunnel.ps1."));
         var tunnelStatus = App.Host.OpenAiTunnel.GetStatus();
         _openAiTunnelStatusBlock = new TextBlock
         {
@@ -958,35 +959,16 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
             Text = FormatOpenAiTunnelStatus(tunnelStatus)
         };
         ContentHost.Children.Add(Wrap(_openAiTunnelStatusBlock));
-        var tunnelEnabled = new CheckBox
+        ContentHost.Children.Add(Toggle("Run ChatGPT tunnel with DesktopUseAgent", settings.OpenAiTunnel.Enabled, value =>
         {
-            Content = "Enabled (start with DesktopUseAgent)",
-            IsChecked = settings.OpenAiTunnel.Enabled
-        };
-        tunnelEnabled.Click += async (_, _) =>
+            _ = ToggleOpenAiTunnelEnabledAsync(value);
+        }));
+        ContentHost.Children.Add(Toggle("Show tunnel console window", settings.OpenAiTunnel.ShowConsoleWindow, value =>
         {
-            try
-            {
-                var enabled = tunnelEnabled.IsChecked == true;
-                await App.Host.OpenAiTunnel.SetEnabledAsync(enabled);
-                if (_openAiTunnelRestartButton is not null)
-                {
-                    _openAiTunnelRestartButton.IsEnabled = enabled;
-                }
-
-                if (_openAiTunnelStatusBlock is not null)
-                {
-                    _openAiTunnelStatusBlock.Text = FormatOpenAiTunnelStatus(App.Host.OpenAiTunnel.GetStatus());
-                }
-            }
-            catch (Exception ex)
-            {
-                StatusText.Text = ex.Message;
-            }
-        };
-        ContentHost.Children.Add(Wrap(tunnelEnabled));
+            _ = SetOpenAiTunnelShowConsoleAsync(value);
+        }));
         var keyStored = App.Host.OpenAiTunnel.HasRuntimeKey();
-        ContentHost.Children.Add(Card(keyStored ? "Runtime API key: stored (DPAPI)" : "Runtime API key: not stored"));
+        ContentHost.Children.Add(Card(keyStored ? "Runtime API key: stored (DPAPI)" : "Runtime API key: not stored — save a key below before enabling"));
         var tunnelKeyBox = new PasswordBox { PlaceholderText = "Restricted Tunnels Read + Use runtime key", Width = 360 };
         ContentHost.Children.Add(Wrap(tunnelKeyBox));
         var saveKey = new Button { Content = "Save runtime key" };
@@ -1021,7 +1003,6 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
             try
             {
                 await App.Host.OpenAiTunnel.ClearRuntimeKeyAsync();
-                tunnelEnabled.IsChecked = false;
                 tunnelKeyBox.Password = string.Empty;
                 if (_openAiTunnelRestartButton is not null)
                 {
@@ -1185,6 +1166,50 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
         var pkg = new Windows.ApplicationModel.DataTransfer.DataPackage();
         pkg.SetText(text);
         Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(pkg);
+    }
+
+    private async Task ToggleOpenAiTunnelEnabledAsync(bool enabled)
+    {
+        try
+        {
+            await App.Host.OpenAiTunnel.SetEnabledAsync(enabled);
+            if (_openAiTunnelRestartButton is not null)
+            {
+                _openAiTunnelRestartButton.IsEnabled = enabled;
+            }
+
+            if (_openAiTunnelStatusBlock is not null)
+            {
+                _openAiTunnelStatusBlock.Text = FormatOpenAiTunnelStatus(App.Host.OpenAiTunnel.GetStatus());
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = ex.Message;
+        }
+    }
+
+    private async Task SetOpenAiTunnelShowConsoleAsync(bool showConsole)
+    {
+        try
+        {
+            var settings = App.Host.Settings.Get();
+            settings.OpenAiTunnel.ShowConsoleWindow = showConsole;
+            App.Host.Settings.Save(settings);
+            if (settings.OpenAiTunnel.Enabled)
+            {
+                await App.Host.OpenAiTunnel.RestartAsync();
+            }
+
+            if (_openAiTunnelStatusBlock is not null)
+            {
+                _openAiTunnelStatusBlock.Text = FormatOpenAiTunnelStatus(App.Host.OpenAiTunnel.GetStatus());
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = ex.Message;
+        }
     }
 
     private static Border Toggle(string label, bool initial, Action<bool> changed)

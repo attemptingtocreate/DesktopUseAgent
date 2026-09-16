@@ -29,6 +29,7 @@ public sealed class OpenAiTunnelLaunchRequest
     public required string ProfileName { get; init; }
     public required string ProfileDirectory { get; init; }
     public required string RuntimeKey { get; init; }
+    public bool ShowConsoleWindow { get; init; }
 }
 
 public sealed class OpenAiTunnelDoctorResult
@@ -151,7 +152,8 @@ public sealed class OpenAiTunnelProcessGateway : IOpenAiTunnelProcessGateway
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var psi = CreateStartInfo(request.TunnelClientPath, request.RuntimeKey);
+        var showConsole = request.ShowConsoleWindow;
+        var psi = CreateStartInfo(request.TunnelClientPath, request.RuntimeKey, redirectOutput: !showConsole, createNoWindow: !showConsole);
         psi.ArgumentList.Add("run");
         psi.ArgumentList.Add("--profile");
         psi.ArgumentList.Add(request.ProfileName);
@@ -160,20 +162,23 @@ public sealed class OpenAiTunnelProcessGateway : IOpenAiTunnelProcessGateway
 
         var output = new BoundedDiagnosticBuffer();
         var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
-        process.OutputDataReceived += (_, e) =>
+        if (!showConsole)
         {
-            if (e.Data is not null)
+            process.OutputDataReceived += (_, e) =>
             {
-                output.AppendLine(e.Data);
-            }
-        };
-        process.ErrorDataReceived += (_, e) =>
-        {
-            if (e.Data is not null)
+                if (e.Data is not null)
+                {
+                    output.AppendLine(e.Data);
+                }
+            };
+            process.ErrorDataReceived += (_, e) =>
             {
-                output.AppendLine(e.Data);
-            }
-        };
+                if (e.Data is not null)
+                {
+                    output.AppendLine(e.Data);
+                }
+            };
+        }
 
         if (!process.Start())
         {
@@ -181,20 +186,28 @@ public sealed class OpenAiTunnelProcessGateway : IOpenAiTunnelProcessGateway
             throw new InvalidOperationException("Failed to start tunnel-client run.");
         }
 
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
+        if (!showConsole)
+        {
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+        }
+
         return Task.FromResult<IOpenAiTunnelProcessHandle>(new ProcessTunnelHandle(process, output, request.RuntimeKey));
     }
 
-    private static ProcessStartInfo CreateStartInfo(string tunnelClientPath, string runtimeKey)
+    private static ProcessStartInfo CreateStartInfo(
+        string tunnelClientPath,
+        string runtimeKey,
+        bool redirectOutput = true,
+        bool createNoWindow = true)
     {
         var psi = new ProcessStartInfo
         {
             FileName = tunnelClientPath,
             UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
+            CreateNoWindow = createNoWindow,
+            RedirectStandardOutput = redirectOutput,
+            RedirectStandardError = redirectOutput
         };
 
         psi.Environment.Remove("OPENAI_ADMIN_KEY");
@@ -580,7 +593,8 @@ public sealed class OpenAiTunnelLifecycle
                 TunnelClientPath = tunnelClientPath,
                 ProfileName = settings.ProfileName,
                 ProfileDirectory = profileDirectory,
-                RuntimeKey = runtimeKey
+                RuntimeKey = runtimeKey,
+                ShowConsoleWindow = settings.ShowConsoleWindow
             };
 
             OpenAiTunnelDoctorResult doctor;

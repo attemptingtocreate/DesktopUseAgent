@@ -86,6 +86,29 @@ public class OpenAiTunnelLifecycleTests
             await lifecycle.StartAsync();
             Assert.Equal(1, gateway.DoctorCallCount);
             Assert.Equal(1, gateway.StartCallCount);
+            Assert.False(gateway.LastShowConsoleWindow);
+        }
+        finally
+        {
+            await lifecycle.StopAsync();
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ShowConsoleWindow_Is_Passed_To_Process_Gateway()
+    {
+        var (lifecycle, settings, _, gateway, root) = CreateHarness(enabled: true);
+        try
+        {
+            var current = settings.Get();
+            current.OpenAiTunnel.ShowConsoleWindow = true;
+            settings.Save(current);
+
+            await lifecycle.StartAsync();
+            Assert.Equal(1, gateway.StartCallCount);
+            Assert.True(gateway.LastShowConsoleWindow);
+            Assert.Equal(OpenAiTunnelState.Running, lifecycle.GetStatus().State);
         }
         finally
         {
@@ -438,6 +461,7 @@ internal sealed class FakeOpenAiTunnelProcessGateway : IOpenAiTunnelProcessGatew
     public TaskCompletionSource<object?>? DoctorBlock { get; set; }
     public bool RuntimeKeyReceived { get; private set; }
     public string? LastReturnedDiagnosticTail { get; private set; }
+    public bool LastShowConsoleWindow { get; private set; }
     public FakeOpenAiTunnelProcessHandle? Running { get; private set; }
 
     public async Task<OpenAiTunnelDoctorResult> RunDoctorAsync(OpenAiTunnelLaunchRequest request, CancellationToken cancellationToken = default)
@@ -483,6 +507,7 @@ internal sealed class FakeOpenAiTunnelProcessGateway : IOpenAiTunnelProcessGatew
     {
         cancellationToken.ThrowIfCancellationRequested();
         StartCallCount++;
+        LastShowConsoleWindow = request.ShowConsoleWindow;
         RunArguments.Clear();
         RunArguments.AddRange(new[]
         {

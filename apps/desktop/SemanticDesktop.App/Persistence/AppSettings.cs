@@ -13,6 +13,11 @@ public sealed class AppSettings
 public sealed class OpenAiTunnelSettings
 {
     public bool Enabled { get; set; }
+    /// <summary>
+    /// When true, tunnel-client runs in a visible console window (script-like).
+    /// When false, it runs as a hidden background process managed by Control Center.
+    /// </summary>
+    public bool ShowConsoleWindow { get; set; }
     public string ProfileName { get; set; } = "desktopuseagent";
     public string? ProfileDirectory { get; set; }
     public string? TunnelClientPath { get; set; }

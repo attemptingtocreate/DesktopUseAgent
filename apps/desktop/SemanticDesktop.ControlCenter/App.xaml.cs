@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using SemanticDesktop.App;
+using SemanticDesktop.App.Persistence;
 using SemanticDesktop.App.Runtime;
 using SemanticDesktop.ControlCenter.Client;
 
@@ -85,7 +86,12 @@ public partial class App : Application
     {
         try
         {
-            await Host.OpenAiTunnel.StopAsync();
+            var settings = Host.Settings.Get();
+            var exitAll = settings.General.CloseBehavior == CloseBehavior.ExitAll;
+            if (exitAll || !settings.OpenAiTunnel.Enabled)
+            {
+                await Host.OpenAiTunnel.StopAsync();
+            }
         }
         catch
         {
