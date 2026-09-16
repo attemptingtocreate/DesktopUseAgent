@@ -36,7 +36,7 @@ CommandDispatcher CreateDispatcher()
     catch (Exception ex)
     {
         WriteStartupCrash(dataRoot, ex);
-        return new CommandDispatcher();
+        throw;
     }
 }
 
