@@ -1,8 +1,8 @@
 using System.Drawing;
 using System.Drawing.Imaging;
-using System.Runtime.InteropServices;
 using SemanticDesktop.Core.Errors;
 using SemanticDesktop.Win32.Input;
+using SemanticDesktop.Win32.Monitors;
 using SemanticDesktop.Win32.Native;
 
 namespace SemanticDesktop.Win32.Vision;
@@ -14,6 +14,12 @@ namespace SemanticDesktop.Win32.Vision;
 public sealed class GdiVisionCaptureProvider : IVisionCaptureProvider
 {
     public const string DefaultVisionReason = "semantic_interfaces_failed";
+    private readonly MonitorService _monitors;
+
+    public GdiVisionCaptureProvider(MonitorService? monitors = null)
+    {
+        _monitors = monitors ?? new MonitorService();
+    }
 
     public string Id => "gdi-local";
 
@@ -22,14 +28,14 @@ public sealed class GdiVisionCaptureProvider : IVisionCaptureProvider
         var screen = ScreenCoordinates.GetVirtualScreen();
         if (monitorIndex is int idx)
         {
-            var monitors = EnumerateMonitors();
+            var monitors = _monitors.List(forceRefresh: true);
             if (idx < 0 || idx >= monitors.Count)
             {
                 throw new ArgumentException($"{ErrorCodes.InvalidArgument}: monitor index {idx} out of range (0..{monitors.Count - 1}).");
             }
 
             var m = monitors[idx];
-            return CaptureRect(m.Left, m.Top, m.Width, m.Height, idx, null, visionReason);
+            return CaptureRect((int)m.Bounds.X, (int)m.Bounds.Y, (int)m.Bounds.Width, (int)m.Bounds.Height, idx, null, visionReason);
         }
 
         return CaptureRect(screen.Left, screen.Top, screen.Width, screen.Height, null, null, visionReason);
@@ -200,15 +206,10 @@ public sealed class GdiVisionCaptureProvider : IVisionCaptureProvider
         return GetScaleForMonitor(monitor);
     }
 
-    private static double GetScaleForMonitorIndex(int index)
+    private double GetScaleForMonitorIndex(int index)
     {
-        var monitors = EnumerateMonitors();
-        if (index < 0 || index >= monitors.Count)
-        {
-            return 1.0;
-        }
-
-        return GetScaleForMonitor(monitors[index].Handle);
+        var monitor = _monitors.GetByIndex(index);
+        return monitor?.Scale ?? 1.0;
     }
 
     private static double GetScaleForMonitor(IntPtr monitor)
@@ -233,45 +234,5 @@ public sealed class GdiVisionCaptureProvider : IVisionCaptureProvider
         return 1.0;
     }
 
-    private static int? MonitorIndexFromRect(NativeMethods.RECT rect)
-    {
-        var monitor = NativeMethods.MonitorFromRect(ref rect, NativeMethods.MONITOR_DEFAULTTONEAREST);
-        var monitors = EnumerateMonitors();
-        for (var i = 0; i < monitors.Count; i++)
-        {
-            if (monitors[i].Handle == monitor)
-            {
-                return i;
-            }
-        }
-
-        return null;
-    }
-
-    private static List<MonitorInfo> EnumerateMonitors()
-    {
-        var list = new List<MonitorInfo>();
-        NativeMethods.EnumDisplayMonitors(
-            IntPtr.Zero,
-            IntPtr.Zero,
-            (hMonitor, _, _, _) =>
-            {
-                var info = new NativeMethods.MONITORINFO { cbSize = Marshal.SizeOf<NativeMethods.MONITORINFO>() };
-                if (NativeMethods.GetMonitorInfo(hMonitor, ref info))
-                {
-                    list.Add(new MonitorInfo(
-                        hMonitor,
-                        info.rcMonitor.Left,
-                        info.rcMonitor.Top,
-                        info.rcMonitor.Right - info.rcMonitor.Left,
-                        info.rcMonitor.Bottom - info.rcMonitor.Top));
-                }
-
-                return true;
-            },
-            IntPtr.Zero);
-        return list;
-    }
-
-    private readonly record struct MonitorInfo(IntPtr Handle, int Left, int Top, int Width, int Height);
+    private int? MonitorIndexFromRect(NativeMethods.RECT rect) => _monitors.GetMonitorIndexForRect(rect);
 }

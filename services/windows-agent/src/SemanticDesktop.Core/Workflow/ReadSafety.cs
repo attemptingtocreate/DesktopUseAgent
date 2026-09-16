@@ -7,7 +7,8 @@ public static class ReadSafety
     public static bool IsSafeRead(string? method) =>
         method switch
         {
-            CommandNames.WindowList or CommandNames.UiGetTree or CommandNames.UiFind or CommandNames.UiGetText
+            CommandNames.MonitorList or CommandNames.WindowList or CommandNames.WindowGet
+                or CommandNames.UiGetTree or CommandNames.UiFind or CommandNames.UiGetText
                 or CommandNames.FilesystemExists or CommandNames.FilesystemList or CommandNames.FilesystemReadText
                 or CommandNames.FilesystemStat or CommandNames.FilesystemInspect
                 or CommandNames.DesktopGetState or CommandNames.DesktopGetCapabilities
@@ -21,7 +22,8 @@ public static class ReadSafety
                 or CommandNames.AdapterList or CommandNames.AdapterCapabilities
                 or CommandNames.BlenderGetScene or CommandNames.BlenderGetObjects
                 or CommandNames.VsCodeGetWorkspace or CommandNames.VisualStudioGetSolution
-                or CommandNames.SystemPing or CommandNames.SystemStatus or CommandNames.AuditList
+                or CommandNames.RobloxPluginPing or CommandNames.RobloxGetHierarchy or CommandNames.RobloxGetSelection
+                or CommandNames.SystemPing or CommandNames.SystemStatus or CommandNames.SystemPerformance or CommandNames.AuditList
                 or CommandNames.SessionGet or CommandNames.SessionList
                 or CommandNames.EventsPoll
                 => true,
@@ -31,7 +33,7 @@ public static class ReadSafety
     public static bool IsCacheable(string? method) =>
         method switch
         {
-            CommandNames.WindowList or CommandNames.ProcessList
+            CommandNames.MonitorList or CommandNames.WindowList or CommandNames.ProcessList
                 or CommandNames.DesktopGetState or CommandNames.DesktopGetCapabilities
                 or CommandNames.DesktopDescribe or CommandNames.DesktopGetGraph
                 or CommandNames.FilesystemList or CommandNames.FilesystemExists

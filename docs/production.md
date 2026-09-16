@@ -1,17 +1,21 @@
 # Production operations
 
-Runtime `apiVersion` is `1.12.0` (`schemaVersion` 1). Persisted state lives under `%LOCALAPPDATA%\DesktopUseAgent` for new installs. If that folder does not exist and `%LOCALAPPDATA%\SemanticDesktop` does, the agent keeps using the legacy root (no file migration). Override with `DESKTOPUSEAGENT_DATA`, then `SEMANTIC_DESKTOP_DATA` (compat), or `--data=`.
+Product release version comes from repo [`VERSION`](../VERSION) (e.g. `0.1.0-preview.1`). RPC `apiVersion` is `1.12.0` (`schemaVersion` 1) — do not confuse the two.
+
+Persisted **state** lives under `%LOCALAPPDATA%\DesktopUseAgent` for new installs (or legacy `%LOCALAPPDATA%\SemanticDesktop`). **Binaries** install to `%LOCALAPPDATA%\DesktopUseAgent\current` with `install-manifest.json` at that root. Override data with `DESKTOPUSEAGENT_DATA`, then `SEMANTIC_DESKTOP_DATA` (compat), or `--data=`. Override install layout with `DESKTOPUSEAGENT_INSTALL`.
 
 Executables: `DesktopUseAgent.exe` (Control Center) and `DesktopUseAgent.Agent.exe` (Windows Agent). The named pipe remains `semantic-desktop-agent`. Override the pipe with `DESKTOPUSEAGENT_PIPE`, then `SEMANTIC_DESKTOP_PIPE` (compat).
 
-## Install / update / sign
+## Install / update / sign / release
 
-- `scripts/pack.ps1` publishes an unpackaged layout to `artifacts/layout` (`agent`, `control-center`, `mcp`).
-- `scripts/install.ps1` copies that layout to `%LOCALAPPDATA%\DesktopUseAgent\current` and writes `install-manifest.json` (path + SHA-256).
-- `scripts/uninstall.ps1` removes `%LOCALAPPDATA%\DesktopUseAgent` and leftover `%LOCALAPPDATA%\SemanticDesktop`.
+- `scripts/pack.ps1` publishes win-x64 layout to `artifacts/layout` (`agent`, `control-center`, `mcp`, `plugins`).
+- `scripts/install.ps1` copies layout to `%LOCALAPPDATA%\DesktopUseAgent\current`, writes `install-manifest.json` (path + SHA-256), creates Start Menu shortcut. Works from repo or extracted release zip (`layout/` sibling).
+- `scripts/release.ps1` builds/tests (optional), packs, optionally signs, emits `artifacts/release/DesktopUseAgent-<VERSION>-win-x64.zip` + SHA256.
+- `scripts/configure-cursor.ps1` merge-safe Cursor MCP config (project or user scope).
+- `scripts/uninstall.ps1` removes install + data folders and Start Menu shortcut.
 - `scripts/sign.ps1` Authenticode-signs layout binaries when `signtool` and `SIGN_THUMBPRINT` or `SIGN_CERT_PATH` are present. Unsigned local builds are expected.
 
-Agent commands: `system.update.check`, `system.update.apply` (staged directory + manifest hashes), `system.integrity`.
+Agent commands: `system.update.check`, `system.update.apply` (staged directory + manifest hashes; default target is **install root**), `system.integrity` (defaults to install root, explicit `root` param still supported).
 
 ## Crash recovery
 

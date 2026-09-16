@@ -1,6 +1,7 @@
 using System.Text.Json;
 using SemanticDesktop.Adapters;
 using SemanticDesktop.Adapters.Blender;
+using SemanticDesktop.Adapters.RobloxStudio;
 using SemanticDesktop.Adapters.VisualStudio;
 using SemanticDesktop.Adapters.VsCode;
 using SemanticDesktop.Agent;
@@ -63,6 +64,23 @@ public class AdapterRegistryTests
     }
 
     [Fact]
+    public async Task Execute_Resolves_By_Process_When_Action_Unrecognized()
+    {
+        var fake = new FakeAdapter { Id = "blender", ProcessToken = "blender" };
+        var registry = new AdapterRegistry(new[] { fake });
+        registry.SetProcessResolver((_, _) => new ProcessInfo { Id = "p1", Pid = 1, Name = "blender.exe" });
+
+        var result = await registry.ExecuteAsync(null, new AdapterCommand
+        {
+            Action = "custom.thing",
+            WindowId = "win_1"
+        }, CancellationToken.None);
+
+        Assert.True(result.Ok);
+        Assert.Contains("custom.thing", fake.Executed);
+    }
+
+    [Fact]
     public async Task Execute_Unknown_Adapter_Fails()
     {
         var registry = new AdapterRegistry();
@@ -81,13 +99,17 @@ public class BuiltInAdapterDiscoveryTests
         {
             new BlenderAdapter(),
             new VsCodeAdapter(),
-            new VisualStudioAdapter()
+            new VisualStudioAdapter(),
+            new RobloxStudioAdapter(new InMemoryRobloxBridge())
         });
 
-        Assert.Equal(new[] { "blender", "visualstudio", "vscode" }, registry.ListIds().ToArray());
+        Assert.Equal(new[] { "blender", "roblox", "visualstudio", "vscode" }, registry.ListIds().ToArray());
         var caps = await registry.ListCapabilitiesAsync(CancellationToken.None);
-        Assert.Equal(3, caps.Count);
+        Assert.Equal(4, caps.Count);
+        Assert.Contains(caps, c => c.AdapterId == "roblox" && c.Actions.Contains(CommandNames.RobloxPluginPing));
         Assert.Contains(caps, c => c.AdapterId == "blender" && c.Actions.Contains(CommandNames.BlenderExport));
+        Assert.Contains(caps, c => c.AdapterId == "blender" && c.Actions.Contains(CommandNames.BlenderBatch));
+        Assert.Contains(caps, c => c.AdapterId == "blender" && c.Meta!.ContainsKey("liveBridgeListening"));
         Assert.Contains(caps, c => c.AdapterId == "vscode" && c.Actions.Contains(CommandNames.VsCodeOpenFile));
         Assert.Contains(caps, c => c.AdapterId == "visualstudio" && c.Actions.Contains(CommandNames.VisualStudioBuild));
     }
@@ -96,6 +118,7 @@ public class BuiltInAdapterDiscoveryTests
     public async Task Blender_Missing_Executable_Returns_Unavailable()
     {
         var previous = Environment.GetEnvironmentVariable("BLENDER_PATH");
+        BlenderExecutableCache.Invalidate();
         Environment.SetEnvironmentVariable("BLENDER_PATH", Path.Combine(Path.GetTempPath(), "no-such-blender-" + Guid.NewGuid().ToString("N") + ".exe"));
         try
         {
@@ -126,6 +149,7 @@ public class BuiltInAdapterDiscoveryTests
         finally
         {
             Environment.SetEnvironmentVariable("BLENDER_PATH", previous);
+            BlenderExecutableCache.Invalidate();
         }
     }
 

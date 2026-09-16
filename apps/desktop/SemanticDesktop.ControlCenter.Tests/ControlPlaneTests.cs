@@ -69,6 +69,32 @@ public class ControlPlaneTests
     }
 
     [Fact]
+    public void Snapshot_Parses_Health_And_Adapter_Metadata()
+    {
+        var status = JsonDocument.Parse("""{"ok":true,"data":{"agent":true,"apiVersion":"1.12.0","productVersion":"0.1.0-preview.1","installRoot":"C:\\install","telemetryEnabled":false}}""").RootElement;
+        var sessions = JsonDocument.Parse("""{"ok":true,"data":[]}""").RootElement;
+        var pending = JsonDocument.Parse("""{"ok":true,"data":[]}""").RootElement;
+        var audit = JsonDocument.Parse("""{"ok":true,"data":[]}""").RootElement;
+        var policy = JsonDocument.Parse("""{"ok":true,"data":{"capabilities":[],"appRules":[],"pathRules":[]}}""").RootElement;
+        var integrity = JsonDocument.Parse("""{"ok":true,"data":{"ok":true,"issues":[]}}""").RootElement;
+        var adapters = JsonDocument.Parse("""
+            {"ok":true,"data":[
+              {"adapterId":"roblox","available":true,"meta":{"bridgeListening":true,"pluginConnected":false}},
+              {"adapterId":"blender","available":true,"meta":{"liveBridgeListening":true,"liveSessionConnected":true}}
+            ]}
+            """).RootElement;
+
+        var snapshot = ControlCenterSnapshot.FromRpc("semantic-desktop-agent", status, sessions, pending, audit, policy, integrity, null, adapters);
+        Assert.Equal("0.1.0-preview.1", snapshot.ProductVersion);
+        Assert.True(snapshot.IntegrityOk);
+        Assert.NotNull(snapshot.RobloxHealth);
+        Assert.True(snapshot.RobloxHealth!.BridgeListening);
+        Assert.False(snapshot.RobloxHealth.PluginConnected);
+        Assert.NotNull(snapshot.BlenderHealth);
+        Assert.True(snapshot.BlenderHealth!.PluginConnected);
+    }
+
+    [Fact]
     public void Snapshot_Parses_Policy_And_Detects_Mcp_Session()
     {
         var status = JsonDocument.Parse("""{"ok":true,"data":{"agent":true,"emergencyStopped":false,"pendingApprovals":1,"sessionCount":2,"pipe":"semantic-desktop-agent"}}""").RootElement;
@@ -124,6 +150,36 @@ public class ControlPlaneTests
             .Any(r => r.GetProperty("processName").GetString() == "ContosoBank");
         Assert.True(rules);
         dispatcher.Dispose();
+    }
+
+    [Fact]
+    public async Task TelemetrySet_RoundTrip_Via_Dispatcher()
+    {
+        var dataRoot = Path.Combine(Path.GetTempPath(), "dua-telemetry-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var dispatcher = new CommandDispatcher(dataRoot);
+            using var enabled = Doc(await dispatcher.DispatchAsync(new RpcRequest
+            {
+                Id = "te1",
+                Method = CommandNames.SystemTelemetrySet,
+                Params = JsonSerializer.SerializeToElement(new { enabled = true }, JsonDefaults.Options)
+            }, CancellationToken.None));
+            Assert.True(enabled.RootElement.GetProperty("data").GetProperty("enabled").GetBoolean());
+
+            using var disabled = Doc(await dispatcher.DispatchAsync(new RpcRequest
+            {
+                Id = "te2",
+                Method = CommandNames.SystemTelemetrySet,
+                Params = JsonSerializer.SerializeToElement(new { enabled = false }, JsonDefaults.Options)
+            }, CancellationToken.None));
+            Assert.False(disabled.RootElement.GetProperty("data").GetProperty("enabled").GetBoolean());
+            Assert.Equal("off", disabled.RootElement.GetProperty("data").GetProperty("level").GetString());
+        }
+        finally
+        {
+            try { Directory.Delete(dataRoot, true); } catch { /* cleanup */ }
+        }
     }
 
     [Fact]

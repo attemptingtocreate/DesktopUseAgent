@@ -1,9 +1,35 @@
 $ErrorActionPreference = "Stop"
-$root = Split-Path -Parent $PSScriptRoot
-$layout = Join-Path $root "artifacts\layout"
-if (-not (Test-Path $layout)) {
-  & (Join-Path $PSScriptRoot "pack.ps1")
+
+function Resolve-LayoutRoot {
+  param([string]$ScriptRoot)
+  $candidates = @(
+    (Join-Path $ScriptRoot "layout"),
+    (Join-Path (Split-Path -Parent $ScriptRoot) "artifacts\layout"),
+    (Join-Path (Split-Path -Parent $ScriptRoot) "layout")
+  )
+  foreach ($candidate in $candidates) {
+    if (Test-Path (Join-Path $candidate "agent")) {
+      return (Resolve-Path $candidate).Path
+    }
+  }
+  throw "Could not locate packaged layout. Run scripts/pack.ps1 or extract a release zip that includes layout/."
 }
+
+function Read-ProductVersion {
+  param([string]$ScriptRoot)
+  $versionFile = Join-Path (Split-Path -Parent $ScriptRoot) "VERSION"
+  if (-not (Test-Path $versionFile)) {
+    $versionFile = Join-Path $ScriptRoot "VERSION"
+  }
+  if (Test-Path $versionFile) {
+    return (Get-Content $versionFile -Raw).Trim()
+  }
+  return "0.0.0-dev"
+}
+
+$ScriptRoot = $PSScriptRoot
+$layout = Resolve-LayoutRoot -ScriptRoot $ScriptRoot
+$version = Read-ProductVersion -ScriptRoot $ScriptRoot
 $target = Join-Path $env:LOCALAPPDATA "DesktopUseAgent\current"
 if (Test-Path $target) { Remove-Item $target -Recurse -Force }
 New-Item -ItemType Directory -Path $target | Out-Null
@@ -14,8 +40,8 @@ if (-not (Test-Path $appExe)) {
 }
 $manifest = @{
   schemaVersion = 1
-  version = "1.12.0"
-  channel = "stable"
+  version = $version
+  channel = "developer-preview"
   minCompatibleApi = "1.0.0"
   files = @()
 }
@@ -34,5 +60,5 @@ $link.WorkingDirectory = Split-Path $appExe -Parent
 $link.IconLocation = "$appExe,0"
 $link.Description = "DesktopUseAgent"
 $link.Save()
-Write-Host "Installed to $target"
+Write-Host "Installed DesktopUseAgent $version to $target"
 Write-Host "Start Menu shortcut created at $shortcut"

@@ -1,0 +1,58 @@
+DesktopUseAgent
+Copyright 2026 DesktopUseAgent contributors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+================================================================================
+Third-party components
+================================================================================
+
+This product includes or depends on third-party software. License texts for
+bundled or vendored components should be consulted in their respective
+locations. This NOTICE summarizes attribution pointers only and does not
+replace the license terms of each dependency.
+
+Node / MCP gateway (apps/mcp-server)
+------------------------------------
+Direct npm dependencies (see apps/mcp-server/package.json and package-lock.json):
+- @modelcontextprotocol/sdk — see node_modules/@modelcontextprotocol/sdk/LICENSE
+  or the package registry metadata for the installed version
+- zod — see node_modules/zod/LICENSE or package registry metadata
+
+Transitive npm dependencies: see apps/mcp-server/node_modules/**/package.json
+and LICENSE* files after `npm ci`.
+
+.NET / Windows Agent (services/windows-agent)
+---------------------------------------------
+NuGet packages are restored at build time. License information for each package
+is available from the NuGet gallery entry and under the user's NuGet cache
+(e.g. %USERPROFILE%\.nuget\packages) for the versions referenced in *.csproj.
+
+Key runtime libraries include (non-exhaustive): Microsoft.WindowsAppSDK,
+System.Text.Json, and test packages (xunit, etc.) where applicable.
+
+OpenAI Secure MCP Tunnel (optional, not bundled)
+------------------------------------------------
+tunnel-client is downloaded separately by scripts/install-openai-tunnel-client.ps1
+from https://github.com/openai/tunnel-client — follow that project's license terms.
+
+Roblox Studio plugin / Blender add-on
+---------------------------------------
+Source in plugins/roblox-studio and plugins/blender. Distributed as .rbxmx and
+.zip artifacts in release layouts. Apache-2.0 applies to project source unless
+otherwise noted in those directories.
+
+For a full dependency audit of a release zip, inspect:
+- layout/mcp/node_modules/
+- layout/agent/*.deps.json
+- layout/control-center/*.deps.json

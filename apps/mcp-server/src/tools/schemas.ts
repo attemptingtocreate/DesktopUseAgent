@@ -115,10 +115,68 @@ export const toolSchemas = {
       includeControls: z.boolean().optional(),
     })
     .strict(),
+  "monitor.list": emptyParams,
   "window.list": emptyParams,
+  "window.get": z
+    .object({
+      windowId: z.string().min(1),
+    })
+    .strict(),
   "window.focus": z
     .object({
       windowId: z.string().min(1),
+    })
+    .strict(),
+  "window.minimize": z
+    .object({
+      windowId: z.string().min(1),
+    })
+    .strict(),
+  "window.maximize": z
+    .object({
+      windowId: z.string().min(1),
+    })
+    .strict(),
+  "window.restore": z
+    .object({
+      windowId: z.string().min(1),
+    })
+    .strict(),
+  "window.move": z
+    .object({
+      windowId: z.string().min(1),
+      x: z.number().int().optional(),
+      y: z.number().int().optional(),
+      monitor: z.number().int().nonnegative().optional(),
+      placement: z.enum(["preserve", "maximize"]).optional(),
+    })
+    .strict()
+    .superRefine((value, ctx) => {
+      const hasMonitor = value.monitor !== undefined;
+      const hasX = value.x !== undefined;
+      const hasY = value.y !== undefined;
+
+      if (!hasMonitor && !(hasX && hasY)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "window.move requires monitor and/or both x and y",
+        });
+      }
+
+      if ((hasX && !hasY) || (!hasX && hasY)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "window.move requires both x and y when either coordinate is provided",
+        });
+      }
+    }),
+  "window.resize": z
+    .object({
+      windowId: z.string().min(1),
+      width: z.number().int().positive(),
+      height: z.number().int().positive(),
+      x: z.number().int().optional(),
+      y: z.number().int().optional(),
     })
     .strict(),
   "window.wait_for": z
@@ -250,6 +308,7 @@ export const toolSchemas = {
       message: "planId or id is required",
     }),
   "system.emergency_stop": emptyParams,
+  "system.performance": emptyParams,
   "events.subscribe": z
     .object({
       types: z.array(z.string().min(1)).optional(),
@@ -402,17 +461,55 @@ export const toolSchemas = {
       configuration: z.string().optional(),
       line: z.number().int().positive().optional(),
       column: z.number().int().positive().optional(),
+      sessionId: z.string().optional(),
+      instanceId: z.string().optional(),
+      instanceIds: z.array(z.string().min(1)).optional(),
+      ids: z.array(z.string().min(1)).optional(),
+      property: z.string().optional(),
+      value: z.union([z.string(), z.number(), z.boolean()]).optional(),
+      rootPath: z.string().optional(),
+      depth: z.number().int().positive().max(10).optional(),
+      maxNodes: z.number().int().positive().max(500).optional(),
+      timeoutSeconds: z.number().int().positive().max(120).optional(),
     })
     .strict(),
-  "blender.open": z.object({ path: z.string().min(1).optional(), file: z.string().min(1).optional() }).strict(),
-  "blender.get_scene": z.object({ path: z.string().optional(), file: z.string().optional() }).strict(),
-  "blender.get_objects": z.object({ path: z.string().optional(), file: z.string().optional() }).strict(),
+  "blender.open": z
+    .object({
+      path: z.string().min(1).optional(),
+      file: z.string().min(1).optional(),
+      mode: z.enum(["background", "gui"]).optional(),
+    })
+    .strict(),
+  "blender.get_scene": z
+    .object({
+      path: z.string().optional(),
+      file: z.string().optional(),
+      mode: z.enum(["auto", "live", "background"]).optional(),
+      sessionId: z.string().optional(),
+      processId: z.string().optional(),
+      windowId: z.string().optional(),
+    })
+    .strict(),
+  "blender.get_objects": z
+    .object({
+      path: z.string().optional(),
+      file: z.string().optional(),
+      mode: z.enum(["auto", "live", "background"]).optional(),
+      sessionId: z.string().optional(),
+      processId: z.string().optional(),
+      windowId: z.string().optional(),
+    })
+    .strict(),
   "blender.select_object": z
     .object({
       name: z.string().optional(),
       object: z.string().optional(),
       path: z.string().optional(),
       file: z.string().optional(),
+      mode: z.enum(["auto", "live", "background"]).optional(),
+      sessionId: z.string().optional(),
+      processId: z.string().optional(),
+      windowId: z.string().optional(),
     })
     .strict(),
   "blender.execute_python": z
@@ -430,6 +527,10 @@ export const toolSchemas = {
       format: z.string().optional(),
       path: z.string().optional(),
       file: z.string().optional(),
+      blendFile: z.string().optional(),
+      overwrite: z.boolean().optional(),
+      mode: z.enum(["auto", "live", "background"]).optional(),
+      sessionId: z.string().optional(),
     })
     .strict(),
   "blender.save": z
@@ -437,6 +538,62 @@ export const toolSchemas = {
       path: z.string().optional(),
       file: z.string().optional(),
       destination: z.string().optional(),
+      blendFile: z.string().optional(),
+      overwrite: z.boolean().optional(),
+      mode: z.enum(["auto", "live", "background"]).optional(),
+      sessionId: z.string().optional(),
+    })
+    .strict(),
+  "blender.batch": z
+    .object({
+      operations: z
+        .array(
+          z
+            .object({
+              op: z.string().min(1).optional(),
+              operation: z.string().min(1).optional(),
+            })
+            .passthrough(),
+        )
+        .min(1)
+        .max(32),
+      failFast: z.boolean().optional(),
+      path: z.string().optional(),
+      file: z.string().optional(),
+    })
+    .strict(),
+  "blender.render": z
+    .object({
+      output: z.string().min(1),
+      path: z.string().optional(),
+      file: z.string().optional(),
+      engine: z.string().optional(),
+      frame: z.number().int().positive().optional(),
+      animation: z.boolean().optional(),
+      overwrite: z.boolean().optional(),
+      mode: z.enum(["auto", "live", "background"]).optional(),
+      sessionId: z.string().optional(),
+      processId: z.string().optional(),
+      windowId: z.string().optional(),
+    })
+    .strict(),
+  "blender.import_mesh": z
+    .object({
+      path: z.string().min(1).optional(),
+      input: z.string().min(1).optional(),
+      format: z.string().optional(),
+      name: z.string().optional(),
+      objectName: z.string().optional(),
+      collection: z.string().optional(),
+      collectionName: z.string().optional(),
+      saveAs: z.string().optional(),
+      file: z.string().optional(),
+      blendFile: z.string().optional(),
+      overwrite: z.boolean().optional(),
+      mode: z.enum(["auto", "live", "background"]).optional(),
+      sessionId: z.string().optional(),
+      processId: z.string().optional(),
+      windowId: z.string().optional(),
     })
     .strict(),
   "vscode.open_file": z
@@ -460,6 +617,70 @@ export const toolSchemas = {
     .strict(),
   "visualstudio.open_file": z.object({ path: z.string().optional(), file: z.string().optional() }).strict(),
   "visualstudio.open_solution": z.object({ path: z.string().optional(), solution: z.string().optional() }).strict(),
+  "roblox.open_place": z
+    .object({
+      path: z.string().min(1).optional(),
+      file: z.string().min(1).optional(),
+      monitor: z.number().int().nonnegative().optional(),
+      placement: z.enum(["preserve", "normal", "maximize"]).optional(),
+      x: z.number().int().optional(),
+      y: z.number().int().optional(),
+      timeoutSeconds: z.number().int().positive().max(120).optional(),
+    })
+    .strict(),
+  "roblox.plugin_ping": z.object({ sessionId: z.string().optional() }).strict(),
+  "roblox.get_hierarchy": z
+    .object({
+      sessionId: z.string().optional(),
+      rootPath: z.string().optional(),
+      depth: z.number().int().positive().max(10).optional(),
+      maxNodes: z.number().int().positive().max(500).optional(),
+      timeoutSeconds: z.number().int().positive().max(120).optional(),
+    })
+    .strict(),
+  "roblox.get_selection": z
+    .object({
+      sessionId: z.string().optional(),
+      timeoutSeconds: z.number().int().positive().max(120).optional(),
+    })
+    .strict(),
+  "roblox.select": z
+    .object({
+      sessionId: z.string().optional(),
+      instanceIds: z.array(z.string().min(1)).min(1).max(50).optional(),
+      ids: z.array(z.string().min(1)).min(1).max(50).optional(),
+      timeoutSeconds: z.number().int().positive().max(120).optional(),
+    })
+    .strict(),
+  "roblox.set_property": z
+    .object({
+      sessionId: z.string().optional(),
+      instanceId: z.string().min(1),
+      property: z.string().min(1),
+      value: z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z
+          .object({
+            type: z.literal("Color3"),
+            r: z.number().min(0).max(1),
+            g: z.number().min(0).max(1),
+            b: z.number().min(0).max(1),
+          })
+          .strict(),
+        z
+          .object({
+            type: z.literal("Vector3"),
+            x: z.number(),
+            y: z.number(),
+            z: z.number(),
+          })
+          .strict(),
+      ]),
+      timeoutSeconds: z.number().int().positive().max(120).optional(),
+    })
+    .strict(),
   "input.mouse_move": z
     .object({
       x: z.number().int(),
@@ -564,9 +785,17 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   "desktop.get_graph": "Return the structured semantic desktop graph without the compact text rendering.",
   "desktop.batch": "Execute multiple agent commands in one round trip, fusing filesystem stats and running safe reads in parallel.",
   "desktop.diff": "Return a compact state-change diff of the live desktop graph versus the previous snapshot.",
+  "monitor.list": "List connected monitors with bounds, work area, primary flag, and DPI scale.",
   "window.list": "List top-level windows.",
+  "window.get": "Get a single window by id with bounds, restore bounds, monitor index, and show state.",
   "window.focus": "Focus a window by handle id.",
-  "window.wait_for": "Wait until a window matching process/title appears.",
+  "window.minimize": "Minimize a window by id.",
+  "window.maximize": "Maximize a window by id.",
+  "window.restore": "Restore a minimized or maximized window by id.",
+  "window.move": "Move a window using virtual coordinates and/or monitor index; optional placement maximize.",
+  "window.resize":
+    "Resize a window to explicit width/height in physical pixels; optional x/y reposition with omitted axes preserving current position.",
+  "window.wait_for": "Wait until a window matching process/title/titleRegex appears.",
   "ui.get_tree": "Get a bounded UI Automation subtree for a window or root element.",
   "ui.find": "Find UI elements matching a semantic selector.",
   "ui.invoke": "Invoke the default action on a UI element.",
@@ -584,6 +813,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   "plan.execute": "Execute a multi-step automation plan.",
   "plan.cancel": "Cancel a running plan by id.",
   "system.emergency_stop": "Engage the agent emergency stop gate.",
+  "system.performance": "Return local in-process timing aggregates (count, success/failure, p50/p95) by operation.",
   "events.subscribe": "Subscribe to desktop state-change events (window/focus/mutation).",
   "events.poll": "Poll a prior events.subscribe cursor for new events.",
   "events.unsubscribe": "Remove an event subscription.",
@@ -611,14 +841,17 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   "browser.get_downloads": "List recent browser downloads tracked by the agent.",
   "adapter.list": "List application adapters and their availability/actions.",
   "adapter.capabilities": "Get capabilities for one adapter or all adapters.",
-  "adapter.execute": "Execute an application-adapter action (Blender/VS Code/Visual Studio).",
-  "blender.open": "Open a .blend file via Blender Python (background).",
+  "adapter.execute": "Execute an application-adapter action (Blender/VS Code/Visual Studio/Roblox Studio).",
+  "blender.open": "Open a .blend file. Default mode background validates headlessly; mode gui launches visible Blender.",
   "blender.get_scene": "Inspect the Blender scene via Python scripting.",
   "blender.get_objects": "List Blender objects via Python scripting.",
   "blender.select_object": "Select a Blender object by name via Python.",
   "blender.execute_python": "Run a Blender Python snippet.",
   "blender.export": "Export the Blender scene (obj/fbx/gltf/stl) via Python.",
   "blender.save": "Save the Blender file via Python.",
+  "blender.batch": "Run 1..32 allowlisted Blender operations in one background process.",
+  "blender.render": "Render still frame to an absolute output path (background or live bridge).",
+  "blender.import_mesh": "Import obj/fbx/gltf/glb/stl mesh (background or live bridge).",
   "vscode.open_file": "Open a file in VS Code via the code CLI.",
   "vscode.open_folder": "Open a folder/workspace in VS Code via the code CLI.",
   "vscode.execute_command": "Attempt a VS Code CLI --command invocation.",
@@ -627,6 +860,12 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   "visualstudio.build": "Build a solution via MSBuild or devenv.",
   "visualstudio.open_file": "Open a file in Visual Studio (devenv /Edit).",
   "visualstudio.open_solution": "Open a .sln in Visual Studio (devenv).",
+  "roblox.open_place": "Launch Roblox Studio with an absolute .rbxl/.rbxlx place path.",
+  "roblox.plugin_ping": "Report Roblox bridge listener and Studio plugin connection state.",
+  "roblox.get_hierarchy": "Get a bounded instance hierarchy from the connected Roblox Studio plugin.",
+  "roblox.get_selection": "Get selected instances from the connected Roblox Studio plugin.",
+  "roblox.select": "Select instances by session-scoped IDs via the Roblox Studio plugin.",
+  "roblox.set_property": "Set an allowlisted property on a Roblox instance via the Studio plugin.",
   "input.mouse_move": "Fallback: move the mouse to physical screen coordinates (DPI/virtual-desktop aware).",
   "input.mouse_click": "Fallback: click at physical screen coordinates via SendInput.",
   "input.mouse_drag": "Fallback: drag between physical screen coordinates via SendInput.",

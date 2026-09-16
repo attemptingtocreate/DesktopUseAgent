@@ -136,8 +136,11 @@ public sealed class PermissionEngine
     public static string MapActionToCapability(string action) =>
         action switch
         {
-            CommandNames.WindowList => Capabilities.WindowObserve,
-            CommandNames.WindowFocus => Capabilities.WindowControl,
+            CommandNames.MonitorList => Capabilities.WindowObserve,
+            CommandNames.WindowList or CommandNames.WindowGet => Capabilities.WindowObserve,
+            CommandNames.WindowFocus or CommandNames.WindowMinimize or CommandNames.WindowMaximize
+                or CommandNames.WindowRestore or CommandNames.WindowMove or CommandNames.WindowResize
+                => Capabilities.WindowControl,
             CommandNames.UiGetTree or CommandNames.UiFind or CommandNames.UiGetText => Capabilities.UiObserve,
             CommandNames.UiInvoke or CommandNames.UiSetValue => Capabilities.UiInteract,
             CommandNames.ProcessLaunch => Capabilities.ProcessLaunch,
@@ -169,19 +172,22 @@ public sealed class PermissionEngine
             CommandNames.SystemPing or CommandNames.SessionCreate or CommandNames.SessionGet or CommandNames.SessionList
                 or CommandNames.PermissionApprove or CommandNames.PermissionDeny or CommandNames.PermissionPending
                 or CommandNames.PermissionPolicyGet or CommandNames.PermissionPolicySet
-                or CommandNames.AuditList or CommandNames.SystemStatus
+                or CommandNames.AuditList or CommandNames.SystemStatus or CommandNames.SystemPerformance
                 or CommandNames.SystemEmergencyStop or CommandNames.SystemEmergencyStopClear
                 or CommandNames.SystemUpdateApply or CommandNames.SystemTelemetrySet
                 => Capabilities.DesktopObserve,
             CommandNames.AdapterList or CommandNames.AdapterCapabilities
                 or CommandNames.BlenderGetScene or CommandNames.BlenderGetObjects
                 or CommandNames.VsCodeGetWorkspace or CommandNames.VisualStudioGetSolution
+                or CommandNames.RobloxPluginPing or CommandNames.RobloxGetHierarchy or CommandNames.RobloxGetSelection
                 => Capabilities.AdapterObserve,
             CommandNames.AdapterExecute
                 or CommandNames.BlenderOpen or CommandNames.BlenderSelectObject or CommandNames.BlenderExecutePython
                 or CommandNames.BlenderExport or CommandNames.BlenderSave
+                or CommandNames.BlenderBatch or CommandNames.BlenderRender or CommandNames.BlenderImportMesh
                 or CommandNames.VsCodeOpenFile or CommandNames.VsCodeOpenFolder or CommandNames.VsCodeExecuteCommand
                 or CommandNames.VisualStudioBuild or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
+                or CommandNames.RobloxOpenPlace or CommandNames.RobloxSelect or CommandNames.RobloxSetProperty
                 => Capabilities.AdapterInteract,
             CommandNames.InputMouseMove or CommandNames.InputMouseClick or CommandNames.InputMouseDrag or CommandNames.InputScroll
                 => Capabilities.InputMouse,
@@ -195,10 +201,11 @@ public sealed class PermissionEngine
     public static RiskClass MapActionToRisk(string action) =>
         action switch
         {
-            CommandNames.WindowList or CommandNames.UiGetTree or CommandNames.UiFind or CommandNames.UiGetText
+            CommandNames.MonitorList or CommandNames.WindowList or CommandNames.WindowGet
+                or CommandNames.UiGetTree or CommandNames.UiFind or CommandNames.UiGetText
                 or CommandNames.FilesystemExists or CommandNames.FilesystemList or CommandNames.FilesystemReadText
                 or CommandNames.FilesystemStat or CommandNames.FilesystemInspect
-                or CommandNames.SystemPing or CommandNames.AuditList or CommandNames.SystemStatus
+                or CommandNames.SystemPing or CommandNames.AuditList or CommandNames.SystemStatus or CommandNames.SystemPerformance
                 or CommandNames.SessionGet or CommandNames.SessionList or CommandNames.PermissionPending
                 or CommandNames.PermissionPolicyGet
                 or CommandNames.DesktopGetState or CommandNames.DesktopGetCapabilities
@@ -216,8 +223,11 @@ public sealed class PermissionEngine
                 or CommandNames.AdapterList or CommandNames.AdapterCapabilities
                 or CommandNames.BlenderGetScene or CommandNames.BlenderGetObjects
                 or CommandNames.VsCodeGetWorkspace or CommandNames.VisualStudioGetSolution
+                or CommandNames.RobloxPluginPing or CommandNames.RobloxGetHierarchy or CommandNames.RobloxGetSelection
                 => RiskClass.Read,
-            CommandNames.WindowFocus or CommandNames.UiInvoke or CommandNames.UiSetValue or CommandNames.ProcessLaunch
+            CommandNames.WindowFocus or CommandNames.WindowMinimize or CommandNames.WindowMaximize
+                or CommandNames.WindowRestore or CommandNames.WindowMove or CommandNames.WindowResize
+                or CommandNames.UiInvoke or CommandNames.UiSetValue or CommandNames.ProcessLaunch
                 or CommandNames.PlanExecute or CommandNames.PlanCancel or CommandNames.FilesystemWriteText
                 or CommandNames.BrowserOpenTab or CommandNames.BrowserCloseTab or CommandNames.BrowserNavigate
                 or CommandNames.BrowserBack or CommandNames.BrowserForward or CommandNames.BrowserReload
@@ -226,8 +236,10 @@ public sealed class PermissionEngine
                 or CommandNames.AdapterExecute
                 or CommandNames.BlenderOpen or CommandNames.BlenderSelectObject or CommandNames.BlenderExecutePython
                 or CommandNames.BlenderExport or CommandNames.BlenderSave
+                or CommandNames.BlenderBatch or CommandNames.BlenderRender or CommandNames.BlenderImportMesh
                 or CommandNames.VsCodeOpenFile or CommandNames.VsCodeOpenFolder or CommandNames.VsCodeExecuteCommand
                 or CommandNames.VisualStudioBuild or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
+                or CommandNames.RobloxOpenPlace or CommandNames.RobloxSelect or CommandNames.RobloxSetProperty
                 => RiskClass.LowRiskWrite,
             CommandNames.InputMouseMove or CommandNames.InputScroll => RiskClass.LowRiskWrite,
             CommandNames.InputMouseClick or CommandNames.InputMouseDrag

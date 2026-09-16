@@ -104,6 +104,36 @@ describe("tool schema validation", () => {
     expect(parsed).toEqual({ windowId: "win_1" });
   });
 
+  it("accepts monitor.list and window control schemas", () => {
+    expect(parseToolArgs("monitor.list", {})).toEqual({});
+    expect(parseToolArgs("window.get", { windowId: "win_1" })).toEqual({ windowId: "win_1" });
+    expect(
+      parseToolArgs("window.move", { windowId: "win_1", monitor: 0, placement: "maximize" }),
+    ).toEqual({ windowId: "win_1", monitor: 0, placement: "maximize" });
+    expect(parseToolArgs("window.move", { windowId: "win_1", x: 10, y: 20 })).toEqual({
+      windowId: "win_1",
+      x: 10,
+      y: 20,
+    });
+    expect(parseToolArgs("window.resize", { windowId: "win_1", width: 800, height: 600 })).toEqual({
+      windowId: "win_1",
+      width: 800,
+      height: 600,
+    });
+    expect(parseToolArgs("window.resize", { windowId: "win_1", width: 800, height: 600, x: 12 })).toEqual({
+      windowId: "win_1",
+      width: 800,
+      height: 600,
+      x: 12,
+    });
+  });
+
+  it("rejects invalid window.move target combinations", () => {
+    expect(() => parseToolArgs("window.move", { windowId: "win_1" })).toThrow();
+    expect(() => parseToolArgs("window.move", { windowId: "win_1", x: 10 })).toThrow();
+    expect(() => parseToolArgs("window.move", { windowId: "win_1", y: 20 })).toThrow();
+  });
+
   it("accepts empty object for desktop.get_state", () => {
     expect(parseToolArgs("desktop.get_state", {})).toEqual({});
   });

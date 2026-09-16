@@ -86,7 +86,18 @@ public sealed class DesktopGraphService
 
         var foreground = windows.FirstOrDefault(w => w.Foreground) ?? windows.FirstOrDefault();
         var apps = DesktopGraphSemantics.GroupApplications(windows).ToList();
-        var tabs = BrowserDiscovery.TryListLivePages();
+        IReadOnlyList<GraphBrowserTab> tabs;
+        try
+        {
+            using var browserBudget = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            browserBudget.CancelAfter(TimeSpan.FromMilliseconds(1200));
+            tabs = await BrowserDiscovery.TryListLivePagesAsync(browserBudget.Token).ConfigureAwait(false);
+        }
+        catch
+        {
+            tabs = Array.Empty<GraphBrowserTab>();
+        }
+
         DesktopGraphSemantics.AttachBrowserTabs(apps, tabs);
 
         IReadOnlyList<GraphControl> controls = Array.Empty<GraphControl>();
@@ -110,7 +121,10 @@ public sealed class DesktopGraphService
                 Process = w.Process,
                 Pid = w.Pid,
                 Foreground = w.Foreground,
-                Minimized = w.Minimized
+                Minimized = w.Minimized,
+                Maximized = w.Maximized,
+                MonitorIndex = w.MonitorIndex,
+                Bounds = w.Bounds
             }).ToList(),
             BrowserTabs = tabs,
             ImportantControls = controls

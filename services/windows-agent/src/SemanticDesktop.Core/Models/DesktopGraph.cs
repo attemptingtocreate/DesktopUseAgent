@@ -29,6 +29,9 @@ public sealed class GraphWindow
     public int Pid { get; init; }
     public bool Foreground { get; init; }
     public bool Minimized { get; init; }
+    public bool Maximized { get; init; }
+    public int? MonitorIndex { get; init; }
+    public Rect? Bounds { get; init; }
 }
 
 public sealed class GraphBrowserTab

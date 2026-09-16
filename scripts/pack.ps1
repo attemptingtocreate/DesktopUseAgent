@@ -1,5 +1,9 @@
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
+$version = & (Join-Path $PSScriptRoot "read-version.ps1")
+if ($version -ne (Get-Content (Join-Path $root "services\windows-agent\src\SemanticDesktop.Core\Production\RuntimeCompat.cs") -Raw | Select-String 'ProductVersion = "([^"]+)"').Matches.Groups[1].Value) {
+  Write-Warning "RuntimeCompat.ProductVersion may be out of sync with VERSION ($version)."
+}
 $dotnet = Join-Path $root ".tools\dotnet\dotnet.exe"
 if (-not (Test-Path $dotnet)) { $dotnet = "dotnet" }
 $out = Join-Path $root "artifacts\layout"
@@ -14,12 +18,18 @@ if (Test-Path $cc) {
 }
 $mcp = Join-Path $root "apps\mcp-server"
 if (Test-Path (Join-Path $mcp "package.json")) {
-  if (Test-Path (Join-Path $mcp "node_modules")) {
-    & npm --prefix $mcp run build
-    if ($LASTEXITCODE -ne 0) { throw "MCP gateway build failed with exit code $LASTEXITCODE." }
+  if (-not (Test-Path (Join-Path $mcp "node_modules"))) {
+    & npm --prefix $mcp ci
+    if ($LASTEXITCODE -ne 0) { throw "MCP npm ci failed with exit code $LASTEXITCODE." }
   }
+  & npm --prefix $mcp run build
+  if ($LASTEXITCODE -ne 0) { throw "MCP gateway build failed with exit code $LASTEXITCODE." }
   if (-not (Test-Path (Join-Path $mcp "dist\index.js"))) {
     throw "MCP gateway is not built. Run npm install and npm run build in apps\mcp-server."
+  }
+  $pkg = Get-Content (Join-Path $mcp "package.json") -Raw | ConvertFrom-Json
+  if ($pkg.version -ne $version) {
+    Write-Warning "apps/mcp-server package.json version ($($pkg.version)) differs from VERSION ($version)."
   }
   New-Item -ItemType Directory -Path (Join-Path $out "mcp") | Out-Null
   Get-ChildItem $mcp -Force |
@@ -28,4 +38,27 @@ if (Test-Path (Join-Path $mcp "package.json")) {
   & npm --prefix (Join-Path $out "mcp") install --omit=dev --ignore-scripts
   if ($LASTEXITCODE -ne 0) { throw "MCP production dependency install failed with exit code $LASTEXITCODE." }
 }
-Write-Host "Layout written to $out"
+$buildRobloxPlugin = Join-Path $root "scripts\build-roblox-plugin.ps1"
+if (Test-Path $buildRobloxPlugin) {
+  & $buildRobloxPlugin
+  $pluginArtifact = Join-Path $root "artifacts\roblox-studio\DesktopUseAgent.rbxmx"
+  if (Test-Path $pluginArtifact) {
+    $pluginOut = Join-Path $out "plugins\roblox-studio"
+    New-Item -ItemType Directory -Path $pluginOut -Force | Out-Null
+    Copy-Item $pluginArtifact (Join-Path $pluginOut "DesktopUseAgent.rbxmx") -Force
+    Copy-Item (Join-Path $root "plugins\roblox-studio\README.md") (Join-Path $pluginOut "README.md") -Force
+  }
+}
+$buildBlenderAddon = Join-Path $root "scripts\build-blender-addon.ps1"
+if (Test-Path $buildBlenderAddon) {
+  & $buildBlenderAddon
+  $addonArtifact = Join-Path $root "artifacts\blender\desktopuseagent_blender.zip"
+  if (Test-Path $addonArtifact) {
+    $addonOut = Join-Path $out "plugins\blender"
+    New-Item -ItemType Directory -Path $addonOut -Force | Out-Null
+    Copy-Item $addonArtifact (Join-Path $addonOut "desktopuseagent_blender.zip") -Force
+    Copy-Item (Join-Path $root "plugins\blender\README.md") (Join-Path $addonOut "README.md") -Force
+  }
+}
+Copy-Item (Join-Path $root "VERSION") (Join-Path $out "VERSION") -Force
+Write-Host "Layout written to $out (product version $version, win-x64)"

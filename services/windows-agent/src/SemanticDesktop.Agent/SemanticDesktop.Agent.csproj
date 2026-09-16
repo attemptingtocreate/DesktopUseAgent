@@ -8,6 +8,9 @@
     <AssemblyName>DesktopUseAgent.Agent</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\SemanticDesktop.Core\SemanticDesktop.Core.csproj" />
     <ProjectReference Include="..\SemanticDesktop.UIA\SemanticDesktop.UIA.csproj" />
     <ProjectReference Include="..\SemanticDesktop.Win32\SemanticDesktop.Win32.csproj" />

@@ -4,6 +4,7 @@ using SemanticDesktop.Core.Commands;
 using SemanticDesktop.Core.Errors;
 using SemanticDesktop.Core.Security;
 using SemanticDesktop.Permissions;
+using SemanticDesktop.Win32.Windows;
 
 namespace SemanticDesktop.Agent;
 
@@ -14,11 +15,13 @@ internal sealed class SecurityContext
     public required ApprovalBroker Approvals { get; init; }
     public required EmergencyStopGate Emergency { get; init; }
     public required AuditLog Audit { get; init; }
+    public WindowService? Windows { get; init; }
 
     public static readonly HashSet<string> EmergencyExemptions = new(StringComparer.OrdinalIgnoreCase)
     {
         CommandNames.SystemPing,
         CommandNames.SystemStatus,
+        CommandNames.SystemPerformance,
         CommandNames.SystemEmergencyStopClear,
         CommandNames.PermissionApprove,
         CommandNames.PermissionDeny,
@@ -63,7 +66,7 @@ internal sealed class SecurityContext
             or CommandNames.PermissionApprove or CommandNames.PermissionDeny or CommandNames.PermissionPending
             or CommandNames.PermissionPolicyGet or CommandNames.PermissionPolicySet
             or CommandNames.AuditList
-            or CommandNames.SystemStatus
+            or CommandNames.SystemStatus or CommandNames.SystemPerformance
             or CommandNames.SystemEmergencyStop or CommandNames.SystemEmergencyStopClear
             or CommandNames.SystemUpdateCheck or CommandNames.SystemUpdateApply
             or CommandNames.SystemTelemetryGet or CommandNames.SystemTelemetrySet
@@ -78,8 +81,17 @@ internal sealed class SecurityContext
             });
         }
 
-        var path = GetString(parameters, "path");
+        var path = ExtractPermissionPath(action, parameters);
         var application = GetString(parameters, "application") ?? GetString(parameters, "process");
+        if (application is null && Windows is not null)
+        {
+            var windowId = GetString(parameters, "windowId");
+            if (!string.IsNullOrWhiteSpace(windowId))
+            {
+                application = Windows.TryGetProcessName(windowId);
+            }
+        }
+
         var evaluation = Engine.Evaluate(session, action, path, application);
 
         if (evaluation.Decision == PermissionDecisionKind.Allow)
@@ -148,6 +160,51 @@ internal sealed class SecurityContext
         Application = evaluation.Application,
         Reason = evaluation.Reason
     };
+
+    private static string? ExtractPermissionPath(string action, JsonElement? parameters)
+    {
+        if (parameters is null || parameters.Value.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var writePath = action.ToLowerInvariant() switch
+        {
+            CommandNames.BlenderExport => GetString(parameters, "output") ?? GetString(parameters, "destination"),
+            CommandNames.BlenderSave => GetString(parameters, "destination") ?? GetString(parameters, "path"),
+            CommandNames.BlenderRender => GetString(parameters, "output"),
+            CommandNames.BlenderImportMesh => GetString(parameters, "saveAs"),
+            CommandNames.BlenderOpen => GetString(parameters, "path") ?? GetString(parameters, "file"),
+            CommandNames.AdapterExecute => ExtractAdapterExecutePath(parameters),
+            _ => GetString(parameters, "path")
+        };
+
+        if (!string.IsNullOrWhiteSpace(writePath))
+        {
+            return writePath;
+        }
+
+        return GetString(parameters, "path");
+    }
+
+    private static string? ExtractAdapterExecutePath(JsonElement? parameters)
+    {
+        if (parameters is null || parameters.Value.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var nestedAction = GetString(parameters, "action");
+        if (string.IsNullOrWhiteSpace(nestedAction))
+        {
+            return GetString(parameters, "output")
+                   ?? GetString(parameters, "destination")
+                   ?? GetString(parameters, "saveAs")
+                   ?? GetString(parameters, "path");
+        }
+
+        return ExtractPermissionPath(nestedAction, parameters);
+    }
 
     private static string? GetString(JsonElement? parameters, string name)
     {

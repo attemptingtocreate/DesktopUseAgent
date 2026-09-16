@@ -7,7 +7,10 @@ namespace SemanticDesktop.Core.Production;
 public static class RuntimeCompat
 {
     public const int SchemaVersion = 1;
+    /// <summary>RPC / persisted-state protocol version. Do not bump without a compatibility plan.</summary>
     public const string ApiVersion = "1.12.0";
+    /// <summary>Developer-preview product release version. Kept in sync with repo <c>VERSION</c> via packaging scripts.</summary>
+    public const string ProductVersion = "0.1.0-preview.1";
     public const string MinCompatibleApi = "1.0.0";
     /// <summary>Compatibility product id used by persisted state and existing clients.</summary>
     public const string Product = "SemanticDesktop";

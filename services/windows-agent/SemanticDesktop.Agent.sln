@@ -57,6 +57,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SemanticDesktop.App", "..\.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SemanticDesktop.App.Tests", "..\..\apps\desktop\SemanticDesktop.App.Tests\SemanticDesktop.App.Tests.csproj", "{6D4F2B91-8E3C-4A17-B5D0-2F9C8E6A1B73}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SemanticDesktop.Cli.Tests", "tests\SemanticDesktop.Cli.Tests\SemanticDesktop.Cli.Tests.csproj", "{C9EB29B6-93D7-4D50-8059-E04E0AF2D07A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -166,6 +168,10 @@ Global
 		{6D4F2B91-8E3C-4A17-B5D0-2F9C8E6A1B73}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6D4F2B91-8E3C-4A17-B5D0-2F9C8E6A1B73}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6D4F2B91-8E3C-4A17-B5D0-2F9C8E6A1B73}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C9EB29B6-93D7-4D50-8059-E04E0AF2D07A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C9EB29B6-93D7-4D50-8059-E04E0AF2D07A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C9EB29B6-93D7-4D50-8059-E04E0AF2D07A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C9EB29B6-93D7-4D50-8059-E04E0AF2D07A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{5B7210EF-AA7E-4958-9605-089ADD39337C} = {6EF719CB-F2E0-4BDF-81EA-7E62742C3E27}
@@ -189,5 +195,6 @@ Global
 		{90567F40-F1C5-4175-9A17-1682AB6504B6} = {7AA4A585-95D4-4343-964A-DB6D8A7A6694}
 		{1D722757-6CBF-4B39-A9B4-F530CB12A6D3} = {7AA4A585-95D4-4343-964A-DB6D8A7A6694}
 		{6D4F2B91-8E3C-4A17-B5D0-2F9C8E6A1B73} = {7AA4A585-95D4-4343-964A-DB6D8A7A6694}
+		{C9EB29B6-93D7-4D50-8059-E04E0AF2D07A} = {7AA4A585-95D4-4343-964A-DB6D8A7A6694}
 	EndGlobalSection
 EndGlobal

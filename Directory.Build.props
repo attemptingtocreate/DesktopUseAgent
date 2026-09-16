@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <ProductVersion Condition="Exists('$(MSBuildThisFileDirectory)VERSION')">$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION').Trim())</ProductVersion>
+    <ProductVersion Condition="'$(ProductVersion)' == ''">0.0.0-dev</ProductVersion>
+  </PropertyGroup>
+</Project>

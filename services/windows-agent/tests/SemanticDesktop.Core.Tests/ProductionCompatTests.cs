@@ -43,6 +43,7 @@ public class ProductionCompatTests
         Assert.Equal("SemanticDesktop", RuntimeCompat.LegacyProduct);
         Assert.Equal("DesktopUseAgent", RuntimeCompat.ProductDisplayName);
         Assert.Equal("1.12.0", RuntimeCompat.ApiVersion);
+        Assert.Equal("0.1.0-preview.1", RuntimeCompat.ProductVersion);
         Assert.Equal(1, RuntimeCompat.SchemaVersion);
     }
 

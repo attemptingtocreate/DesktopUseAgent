@@ -16,7 +16,28 @@ public sealed class WindowInfo
     public int Pid { get; init; }
     public bool Foreground { get; init; }
     public bool Minimized { get; init; }
+    public bool Maximized { get; init; }
+    public string ShowState { get; init; } = "normal";
+    public int? MonitorIndex { get; init; }
     public Rect? Bounds { get; init; }
+    public Rect? RestoreBounds { get; init; }
+}
+
+public sealed class MonitorInfo
+{
+    public int Index { get; init; }
+    public required Rect Bounds { get; init; }
+    public required Rect WorkArea { get; init; }
+    public bool Primary { get; init; }
+    public double Scale { get; init; } = 1.0;
+    public int DpiX { get; init; } = 96;
+    public int DpiY { get; init; } = 96;
+}
+
+public sealed class WindowMutationResult
+{
+    public required WindowInfo Window { get; init; }
+    public Rect? PriorBounds { get; init; }
 }
 
 public sealed class UIElementSummary

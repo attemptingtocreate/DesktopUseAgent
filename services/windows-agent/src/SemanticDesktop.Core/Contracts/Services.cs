@@ -25,7 +25,14 @@ public interface IUIAutomationService
 public interface IWindowService
 {
     Task<IReadOnlyList<WindowInfo>> ListAsync(CancellationToken cancellationToken);
+    Task<WindowInfo?> GetAsync(string windowId, CancellationToken cancellationToken);
     Task<WindowInfo?> FocusAsync(string windowId, CancellationToken cancellationToken);
+    Task<WindowInfo?> MinimizeAsync(string windowId, CancellationToken cancellationToken);
+    Task<WindowInfo?> MaximizeAsync(string windowId, CancellationToken cancellationToken);
+    Task<WindowInfo?> RestoreAsync(string windowId, CancellationToken cancellationToken);
+    Task<WindowMutationResult?> MoveAsync(WindowMoveRequest request, CancellationToken cancellationToken);
+    Task<WindowMutationResult?> ResizeAsync(WindowResizeRequest request, CancellationToken cancellationToken);
+    string? TryGetProcessName(string windowId);
 }
 
 public interface IProcessService

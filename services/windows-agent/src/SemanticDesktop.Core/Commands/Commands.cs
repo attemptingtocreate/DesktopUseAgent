@@ -5,6 +5,29 @@ public sealed class WindowFocusRequest
     public required string WindowId { get; init; }
 }
 
+public sealed class WindowIdRequest
+{
+    public required string WindowId { get; init; }
+}
+
+public sealed class WindowMoveRequest
+{
+    public required string WindowId { get; init; }
+    public int? X { get; init; }
+    public int? Y { get; init; }
+    public int? Monitor { get; init; }
+    public string Placement { get; init; } = "preserve";
+}
+
+public sealed class WindowResizeRequest
+{
+    public required string WindowId { get; init; }
+    public required int Width { get; init; }
+    public required int Height { get; init; }
+    public int? X { get; init; }
+    public int? Y { get; init; }
+}
+
 public sealed class UIFindQuery
 {
     public string? WindowId { get; init; }
@@ -65,8 +88,15 @@ public sealed class ProcessLaunchRequest
 
 public static class CommandNames
 {
+    public const string MonitorList = "monitor.list";
     public const string WindowList = "window.list";
+    public const string WindowGet = "window.get";
     public const string WindowFocus = "window.focus";
+    public const string WindowMinimize = "window.minimize";
+    public const string WindowMaximize = "window.maximize";
+    public const string WindowRestore = "window.restore";
+    public const string WindowMove = "window.move";
+    public const string WindowResize = "window.resize";
     public const string UiGetTree = "ui.get_tree";
     public const string UiFind = "ui.find";
     public const string UiInvoke = "ui.invoke";
@@ -105,6 +135,7 @@ public static class CommandNames
     public const string PermissionPolicySet = "permission.policy.set";
     public const string AuditList = "audit.list";
     public const string SystemStatus = "system.status";
+    public const string SystemPerformance = "system.performance";
     public const string SystemEmergencyStop = "system.emergency_stop";
     public const string SystemEmergencyStopClear = "system.emergency_stop.clear";
 
@@ -142,6 +173,9 @@ public static class CommandNames
     public const string BlenderExecutePython = "blender.execute_python";
     public const string BlenderExport = "blender.export";
     public const string BlenderSave = "blender.save";
+    public const string BlenderBatch = "blender.batch";
+    public const string BlenderRender = "blender.render";
+    public const string BlenderImportMesh = "blender.import_mesh";
 
     public const string VsCodeOpenFile = "vscode.open_file";
     public const string VsCodeOpenFolder = "vscode.open_folder";
@@ -152,6 +186,13 @@ public static class CommandNames
     public const string VisualStudioBuild = "visualstudio.build";
     public const string VisualStudioOpenFile = "visualstudio.open_file";
     public const string VisualStudioOpenSolution = "visualstudio.open_solution";
+
+    public const string RobloxOpenPlace = "roblox.open_place";
+    public const string RobloxPluginPing = "roblox.plugin_ping";
+    public const string RobloxGetHierarchy = "roblox.get_hierarchy";
+    public const string RobloxGetSelection = "roblox.get_selection";
+    public const string RobloxSelect = "roblox.select";
+    public const string RobloxSetProperty = "roblox.set_property";
 
     public const string InputMouseMove = "input.mouse_move";
     public const string InputMouseClick = "input.mouse_click";

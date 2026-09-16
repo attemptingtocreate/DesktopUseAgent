@@ -145,40 +145,93 @@ public static class BrowserDiscovery
         }
     }
 
-    public static IReadOnlyList<GraphBrowserTab> TryListLivePages()
+    private static readonly TimeSpan LivePagesBudget = TimeSpan.FromMilliseconds(1500);
+    private static readonly TimeSpan LivePagesHttpTimeout = TimeSpan.FromMilliseconds(400);
+
+    public static IReadOnlyList<GraphBrowserTab> TryListLivePages() =>
+        TryListLivePagesAsync(CancellationToken.None, LivePagesBudget).GetAwaiter().GetResult();
+
+    public static async Task<IReadOnlyList<GraphBrowserTab>> TryListLivePagesAsync(
+        CancellationToken cancellationToken = default,
+        TimeSpan? budget = null)
     {
-        var pages = new List<GraphBrowserTab>();
-        foreach (var port in Enumerable.Range(9222, 20))
+        using var budgetCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        budgetCts.CancelAfter(budget ?? LivePagesBudget);
+
+        var livePorts = await FindLiveDebugPortsParallelAsync(budgetCts.Token).ConfigureAwait(false);
+        if (livePorts.Count == 0)
         {
-            if (!IsDebugPortLive(port))
+            return Array.Empty<GraphBrowserTab>();
+        }
+
+        var pages = new List<GraphBrowserTab>();
+        var portTasks = livePorts.Select(port => CollectPagesFromPortAsync(port, pages, budgetCts.Token)).ToArray();
+        try
+        {
+            await Task.WhenAll(portTasks).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Budget exceeded; return partial pages collected so far.
+        }
+        catch
+        {
+            // Best-effort snapshot; missing CDP is not a graph failure.
+        }
+
+        return pages.Count > 30 ? pages.Take(30).ToList() : pages;
+    }
+
+    private static async Task CollectPagesFromPortAsync(int port, List<GraphBrowserTab> pages, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        try
+        {
+            var browser = await ReadBrowserProductAsync(port, cancellationToken).ConfigureAwait(false);
+            using var client = new HttpClient { Timeout = LivePagesHttpTimeout };
+            using var response = await client.GetAsync($"http://127.0.0.1:{port}/json/list", cancellationToken)
+                .ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
             {
-                continue;
+                return;
             }
 
-            try
+            var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
             {
-                var browser = ReadBrowserProduct(port);
-                using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(400) };
-                var json = client.GetStringAsync($"http://127.0.0.1:{port}/json/list").GetAwaiter().GetResult();
-                using var doc = JsonDocument.Parse(json);
-                if (doc.RootElement.ValueKind != JsonValueKind.Array)
+                return;
+            }
+
+            var firstPage = true;
+            foreach (var el in doc.RootElement.EnumerateArray())
+            {
+                if (cancellationToken.IsCancellationRequested || pages.Count >= 30)
+                {
+                    return;
+                }
+
+                var type = el.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : null;
+                if (!string.Equals(type, "page", StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
-                var firstPage = true;
-                foreach (var el in doc.RootElement.EnumerateArray())
+                var id = el.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                if (string.IsNullOrWhiteSpace(id))
                 {
-                    var type = el.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : null;
-                    if (!string.Equals(type, "page", StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
+                    continue;
+                }
 
-                    var id = el.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
-                    if (string.IsNullOrWhiteSpace(id))
+                lock (pages)
+                {
+                    if (pages.Count >= 30)
                     {
-                        continue;
+                        return;
                     }
 
                     pages.Add(new GraphBrowserTab
@@ -189,28 +242,34 @@ public static class BrowserDiscovery
                         Url = el.TryGetProperty("url", out var u) ? u.GetString() : null,
                         Active = firstPage
                     });
-                    firstPage = false;
-                    if (pages.Count >= 30)
-                    {
-                        return pages;
-                    }
                 }
-            }
-            catch
-            {
-                // Best-effort snapshot; missing CDP is not a graph failure.
+
+                firstPage = false;
             }
         }
-
-        return pages;
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Budget or caller cancellation.
+        }
+        catch
+        {
+            // Best-effort per-port snapshot.
+        }
     }
 
-    private static string ReadBrowserProduct(int port)
+    private static async Task<string> ReadBrowserProductAsync(int port, CancellationToken cancellationToken)
     {
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(400) };
-            var json = client.GetStringAsync($"http://127.0.0.1:{port}/json/version").GetAwaiter().GetResult();
+            using var client = new HttpClient { Timeout = LivePagesHttpTimeout };
+            using var response = await client.GetAsync($"http://127.0.0.1:{port}/json/version", cancellationToken)
+                .ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                return "Chrome";
+            }
+
+            var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             using var doc = JsonDocument.Parse(json);
             var product = doc.RootElement.TryGetProperty("Browser", out var b) ? b.GetString() ?? "" : "";
             if (product.Contains("Edg", StringComparison.OrdinalIgnoreCase)) return "Edge";
@@ -283,6 +342,66 @@ public static class BrowserDiscovery
         });
 
         return livePorts.OrderBy(static p => p).ToArray();
+    }
+
+    private static async Task<IReadOnlyList<int>> FindLiveDebugPortsParallelAsync(CancellationToken cancellationToken)
+    {
+        var livePorts = new ConcurrentBag<int>();
+        var tasks = DebugPortRange.Select(async port =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (await IsDebugPortLiveAsync(port, cancellationToken).ConfigureAwait(false))
+            {
+                livePorts.Add(port);
+            }
+        }).ToArray();
+
+        try
+        {
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Budget exceeded; return partial live ports.
+        }
+
+        return livePorts.OrderBy(static p => p).ToArray();
+    }
+
+    private static async Task<bool> IsDebugPortLiveAsync(int port, CancellationToken cancellationToken)
+    {
+        if (!await IsLocalPortOpenAsync(port, 75, cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var client = new HttpClient { Timeout = LivePagesHttpTimeout };
+            using var response = await client.GetAsync($"http://127.0.0.1:{port}/json/version", cancellationToken)
+                .ConfigureAwait(false);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static async Task<bool> IsLocalPortOpenAsync(int port, int timeoutMs, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            connectCts.CancelAfter(timeoutMs);
+            await socket.ConnectAsync(IPAddress.Loopback, port, connectCts.Token).ConfigureAwait(false);
+            return socket.Connected;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static List<(int Port, string? Executable)> DetectDebugPorts()

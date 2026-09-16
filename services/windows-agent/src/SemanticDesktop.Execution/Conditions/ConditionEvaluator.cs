@@ -9,7 +9,12 @@ namespace SemanticDesktop.Execution.Conditions;
 
 public interface IConditionProbe
 {
-    Task<bool> WindowExistsAsync(string? process, string? titleContains, string? windowId, CancellationToken cancellationToken);
+    Task<bool> WindowExistsAsync(
+        string? process,
+        string? titleContains,
+        string? windowId,
+        CancellationToken cancellationToken,
+        string? titleRegex = null);
     Task<bool> ProcessRunningAsync(string processName, CancellationToken cancellationToken);
     Task<bool> UiExistsAsync(string? windowId, Dictionary<string, JsonElement>? selector, CancellationToken cancellationToken);
     Task<bool> UiEnabledAsync(string? windowId, Dictionary<string, JsonElement>? selector, CancellationToken cancellationToken);
@@ -59,8 +64,18 @@ public sealed class ConditionEvaluator
     public Task<bool> EvaluateOnceAsync(Condition condition, CancellationToken cancellationToken) =>
         condition.Type.ToLowerInvariant() switch
         {
-            "window.exists" => _probe.WindowExistsAsync(condition.Process, condition.TitleContains, condition.WindowId, cancellationToken),
-            "window.not_exists" => Negate(_probe.WindowExistsAsync(condition.Process, condition.TitleContains, condition.WindowId, cancellationToken)),
+            "window.exists" => _probe.WindowExistsAsync(
+                condition.Process,
+                condition.TitleContains,
+                condition.WindowId,
+                cancellationToken,
+                condition.TitleRegex),
+            "window.not_exists" => Negate(_probe.WindowExistsAsync(
+                condition.Process,
+                condition.TitleContains,
+                condition.WindowId,
+                cancellationToken,
+                condition.TitleRegex)),
             "process.running" => _probe.ProcessRunningAsync(Require(condition.Process, "process"), cancellationToken),
             "process.exited" => Negate(_probe.ProcessRunningAsync(Require(condition.Process, "process"), cancellationToken)),
             "ui.exists" => _probe.UiExistsAsync(condition.WindowId, condition.Selector ?? BuildSelector(condition), cancellationToken),
@@ -74,8 +89,18 @@ public sealed class ConditionEvaluator
             "file.not_exists" => Task.FromResult(!_files.Exists(Require(condition.Path, "path"))),
             "time.delay" => Task.FromResult(true),
             // Event-style aliases map to local polling conditions for Phase 2.
-            "window.opened" => _probe.WindowExistsAsync(condition.Process, condition.TitleContains, condition.WindowId, cancellationToken),
-            "window.closed" => Negate(_probe.WindowExistsAsync(condition.Process, condition.TitleContains, condition.WindowId, cancellationToken)),
+            "window.opened" => _probe.WindowExistsAsync(
+                condition.Process,
+                condition.TitleContains,
+                condition.WindowId,
+                cancellationToken,
+                condition.TitleRegex),
+            "window.closed" => Negate(_probe.WindowExistsAsync(
+                condition.Process,
+                condition.TitleContains,
+                condition.WindowId,
+                cancellationToken,
+                condition.TitleRegex)),
             _ => throw new ArgumentException($"{ErrorCodes.Unsupported}: condition '{condition.Type}'.")
         };
 

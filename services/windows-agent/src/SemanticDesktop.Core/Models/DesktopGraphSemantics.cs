@@ -80,6 +80,18 @@ public static class DesktopGraphSemantics
                 }
             }
         }
+        else if (IsRobloxStudio(proc, title))
+        {
+            var place = ExtractFileName(title, ".rbxlx")
+                        ?? ExtractFileName(title, ".rbxl")
+                        ?? titles.Select(t => ExtractFileName(t, ".rbxlx") ?? ExtractFileName(t, ".rbxl"))
+                            .FirstOrDefault(f => f is not null);
+            place ??= ExtractSuffixTitle(title, " - Roblox Studio");
+            if (place is not null)
+            {
+                state["place"] = place.TrimEnd('*');
+            }
+        }
         else if (IsBrowserProcess(proc))
         {
             state["kind"] = "browser";
@@ -173,6 +185,7 @@ public static class DesktopGraphSemantics
     {
         var p = process ?? "";
         if (IsBlender(p)) return "Blender";
+        if (IsRobloxStudio(p, title)) return "Roblox Studio";
         if (IsVisualStudio(p, title)) return "Visual Studio";
         if (IsVsCode(p, title)) return "VS Code";
         if (p.Contains("chrome", StringComparison.OrdinalIgnoreCase)) return "Chrome";
@@ -222,6 +235,10 @@ public static class DesktopGraphSemantics
 
     private static bool IsBlender(string process) =>
         process.Contains("blender", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsRobloxStudio(string process, string title) =>
+        process.Contains("RobloxStudioBeta", StringComparison.OrdinalIgnoreCase)
+        || title.Contains("Roblox Studio", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsVisualStudio(string process, string title) =>
         process.Contains("devenv", StringComparison.OrdinalIgnoreCase)
@@ -276,8 +293,8 @@ public static class DesktopGraphSemantics
     public static DesktopGraphDiff Diff(SemanticDesktopGraph? before, SemanticDesktopGraph after)
     {
         before ??= new SemanticDesktopGraph { CapturedAt = after.CapturedAt };
-        var beforeWindows = before.Windows.ToDictionary(w => WindowKey(w), StringComparer.OrdinalIgnoreCase);
-        var afterWindows = after.Windows.ToDictionary(w => WindowKey(w), StringComparer.OrdinalIgnoreCase);
+        var beforeWindows = IndexWindows(before.Windows);
+        var afterWindows = IndexWindows(after.Windows);
 
         var addedWindows = after.Windows.Where(w => !beforeWindows.ContainsKey(WindowKey(w))).ToList();
         var removedWindows = before.Windows.Where(w => !afterWindows.ContainsKey(WindowKey(w))).ToList();
@@ -290,7 +307,10 @@ public static class DesktopGraphSemantics
 
             return !string.Equals(prev.Title, w.Title, StringComparison.Ordinal)
                    || prev.Foreground != w.Foreground
-                   || prev.Minimized != w.Minimized;
+                   || prev.Minimized != w.Minimized
+                   || prev.Maximized != w.Maximized
+                   || prev.MonitorIndex != w.MonitorIndex
+                   || !BoundsEqual(prev.Bounds, w.Bounds);
         }).ToList();
 
         var beforeApps = before.Applications.Select(a => a.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -317,8 +337,31 @@ public static class DesktopGraphSemantics
         };
     }
 
+    private static bool BoundsEqual(Rect? left, Rect? right)
+    {
+        if (left is null && right is null)
+        {
+            return true;
+        }
+
+        if (left is null || right is null)
+        {
+            return false;
+        }
+
+        return Math.Abs(left.X - right.X) < 0.5
+               && Math.Abs(left.Y - right.Y) < 0.5
+               && Math.Abs(left.Width - right.Width) < 0.5
+               && Math.Abs(left.Height - right.Height) < 0.5;
+    }
+
+    private static Dictionary<string, GraphWindow> IndexWindows(IReadOnlyList<GraphWindow> windows) =>
+        windows
+            .GroupBy(WindowKey, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
     private static string WindowKey(GraphWindow w) =>
-        $"{w.Process}|{w.Pid}|{w.Title}";
+        !string.IsNullOrWhiteSpace(w.Id) ? w.Id : $"{w.Process}|{w.Pid}|{w.Title}";
 
     private static string TabKey(GraphBrowserTab t) =>
         t.Url ?? t.Title ?? t.Id;

@@ -42,7 +42,7 @@ public sealed class ProductionRuntime
         }
 
         var state = StateMigrator.Migrate(loaded);
-        state.InstalledVersion ??= RuntimeCompat.ApiVersion;
+        state.InstalledVersion ??= RuntimeCompat.ProductVersion;
         var engine = new PermissionEngine(PolicyPersistence.Load(Path.Combine(dataRoot, "policy.json")));
         PolicyPersistence.Save(Path.Combine(dataRoot, "policy.json"), engine.Policy);
         SaveState(statePath, state);

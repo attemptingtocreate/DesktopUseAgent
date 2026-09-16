@@ -22,6 +22,16 @@ public class DesktopGraphTests
     }
 
     [Fact]
+    public void InferState_RobloxStudioTitle_ExtractsPlace()
+    {
+        var state = DesktopGraphSemantics.InferState(
+            "RobloxStudioBeta",
+            "MyGame.rbxlx - Roblox Studio",
+            new[] { "MyGame.rbxlx - Roblox Studio" });
+        Assert.Equal("MyGame.rbxlx", state["place"]);
+    }
+
+    [Fact]
     public void InferState_VsCodeTitle_ExtractsFileAndFolder()
     {
         var state = DesktopGraphSemantics.InferState(

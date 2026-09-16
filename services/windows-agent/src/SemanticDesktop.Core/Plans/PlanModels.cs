@@ -42,6 +42,7 @@ public sealed class Condition
     public required string Type { get; set; }
     public string? Process { get; set; }
     public string? TitleContains { get; set; }
+    public string? TitleRegex { get; set; }
     public string? WindowId { get; set; }
     public string? Path { get; set; }
     public string? Name { get; set; }

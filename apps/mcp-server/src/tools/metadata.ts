@@ -8,6 +8,7 @@ export interface ToolMetadataEntry {
 
 const DOMAIN_LABELS: Record<string, string> = {
   desktop: "Desktop",
+  monitor: "Monitor",
   window: "Window",
   ui: "UI",
   process: "Process",
@@ -20,6 +21,7 @@ const DOMAIN_LABELS: Record<string, string> = {
   blender: "Blender",
   vscode: "VS Code",
   visualstudio: "Visual Studio",
+  roblox: "Roblox Studio",
   input: "Input",
   vision: "Vision",
 };
@@ -43,7 +45,9 @@ const READ_ONLY_TOOLS = new Set<ToolName>([
   "desktop.describe",
   "desktop.get_graph",
   "desktop.diff",
+  "monitor.list",
   "window.list",
+  "window.get",
   "window.wait_for",
   "ui.get_tree",
   "ui.find",
@@ -74,9 +78,13 @@ const READ_ONLY_TOOLS = new Set<ToolName>([
   "blender.get_objects",
   "vscode.get_workspace",
   "visualstudio.get_solution",
+  "roblox.plugin_ping",
+  "roblox.get_hierarchy",
+  "roblox.get_selection",
   "vision.capture_screen",
   "vision.capture_window",
   "vision.capture_region",
+  "system.performance",
 ]);
 
 /** Irreversible writes, arbitrary dispatch/execution, or actions with likely data loss. */
@@ -93,6 +101,9 @@ const DESTRUCTIVE_TOOLS = new Set<ToolName>([
   "blender.execute_python",
   "blender.export",
   "blender.save",
+  "blender.batch",
+  "blender.render",
+  "blender.import_mesh",
   "vscode.execute_command",
   "visualstudio.build",
   "input.mouse_click",

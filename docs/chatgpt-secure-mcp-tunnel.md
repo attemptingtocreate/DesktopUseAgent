@@ -18,7 +18,7 @@ The **Platform runtime API key** is separate from your ChatGPT subscription. Sec
 
 1. **Windows 10/11** with DesktopUseAgent installed and running (Control Center + Windows Agent).
 2. **Node.js 20+** on `PATH` for the MCP stdio entrypoint.
-3. **Built MCP server** at `%LOCALAPPDATA%\DesktopUseAgent\current\mcp\dist\index.js` (via `scripts/install.ps1`) or `apps\mcp-server\dist\index.js` from a dev build.
+3. **Built MCP server** at `%LOCALAPPDATA%\DesktopUseAgent\current\mcp\dist\index.js` (via `scripts/install.ps1` or release zip) or `apps\mcp-server\dist\index.js` from a dev build. Product version is recorded in [`VERSION`](../VERSION); keep MCP built from the same release when possible.
 4. **OpenAI Platform access** with permission to create tunnels and runtime keys.
 5. Official **`tunnel-client`** (installed locally; not bundled in this repo).
 

@@ -76,6 +76,29 @@ public class WorkflowOptimizationTests
     }
 
     [Fact]
+    public void Diff_HandlesDuplicateWindowTitles()
+    {
+        var before = new SemanticDesktopGraph
+        {
+            CapturedAt = DateTimeOffset.UtcNow.AddSeconds(-1),
+            Windows = new[]
+            {
+                new GraphWindow { Id = "w1", Title = "Untitled", Process = "notepad", Pid = 100 },
+                new GraphWindow { Id = "w2", Title = "Untitled", Process = "notepad", Pid = 100 }
+            }
+        };
+        var after = new SemanticDesktopGraph
+        {
+            CapturedAt = DateTimeOffset.UtcNow,
+            Windows = before.Windows
+        };
+
+        var diff = DesktopGraphSemantics.Diff(before, after);
+        Assert.Empty(diff.AddedWindows);
+        Assert.Empty(diff.RemovedWindows);
+    }
+
+    [Fact]
     public void ReadSafety_InspectIsParallelAndCacheable()
     {
         Assert.True(ReadSafety.IsSafeRead(CommandNames.FilesystemInspect));

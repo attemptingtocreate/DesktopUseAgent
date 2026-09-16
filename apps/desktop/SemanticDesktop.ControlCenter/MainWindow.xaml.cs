@@ -180,6 +180,9 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
             case "permissions":
                 RenderPermissions();
                 break;
+            case "health":
+                RenderHealth();
+                break;
             case "settings":
                 RenderSettings();
                 break;
@@ -939,10 +942,9 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
             settings.Privacy.LocalLogs = value;
             App.Host.Settings.Save(settings);
         }));
-        ContentHost.Children.Add(Toggle("Telemetry", settings.Privacy.TelemetryEnabled, value =>
+        ContentHost.Children.Add(Toggle("Telemetry (local counters only; off by default)", settings.Privacy.TelemetryEnabled, value =>
         {
-            settings.Privacy.TelemetryEnabled = value;
-            App.Host.Settings.Save(settings);
+            _ = SetTelemetryAsync(value);
         }));
 
         ContentHost.Children.Add(Header("ChatGPT Secure MCP Tunnel"));
@@ -1086,6 +1088,103 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
         var session = new Button { Content = "Create interactive session (autoApproveAsk=false)" };
         session.Click += CreateSession_Click;
         ContentHost.Children.Add(session);
+    }
+
+    private void RenderHealth()
+    {
+        ContentHost.Children.Add(Header("System health"));
+        var agentLine = _snapshot.Connected
+            ? $"Windows Agent: connected · pipe {_snapshot.PipeName} · API {_snapshot.ApiVersion ?? "?"} · product {_snapshot.ProductVersion ?? "?"}"
+            : $"Windows Agent: offline · pipe {_snapshot.PipeName}";
+        ContentHost.Children.Add(Card(agentLine));
+
+        var mcp = App.Host.McpGatewayStatus;
+        var mcpLine = mcp.AvailableAsStdioModule
+            ? $"MCP gateway: ready · {mcp.EntryPath ?? mcp.Path}{(mcp.ProductVersion is null ? "" : $" · v{mcp.ProductVersion}")}"
+            : "MCP gateway: not found — run install.ps1 or build apps/mcp-server";
+        ContentHost.Children.Add(Card(mcpLine));
+        if (_snapshot.McpSessionPresent)
+        {
+            ContentHost.Children.Add(Card("MCP session: active on agent pipe"));
+        }
+
+        var integrity = _snapshot.IntegrityIssues.Count == 0 && _snapshot.IntegrityOk
+            ? "Install integrity: OK"
+            : $"Install integrity: issues — {string.Join(", ", _snapshot.IntegrityIssues)}";
+        ContentHost.Children.Add(Card(integrity));
+        if (!string.IsNullOrWhiteSpace(_snapshot.InstallRoot))
+        {
+            ContentHost.Children.Add(Card($"Install root: {_snapshot.InstallRoot}"));
+        }
+
+        var tunnel = App.Host.OpenAiTunnel.GetStatus();
+        ContentHost.Children.Add(Card($"ChatGPT Secure MCP Tunnel (advanced): {tunnel.State} — {tunnel.Message}"));
+
+        RenderAdapterHealth("Roblox Studio", _snapshot.RobloxHealth, ".\\scripts\\install-roblox-plugin.ps1");
+        RenderAdapterHealth("Blender", _snapshot.BlenderHealth, ".\\scripts\\install-blender-addon.ps1");
+
+        ContentHost.Children.Add(Card($"Telemetry: {(_snapshot.TelemetryEnabled ? "enabled (local only)" : "disabled")}"));
+
+        var configureCursor = new Button { Content = "Copy configure-cursor.ps1 command" };
+        configureCursor.Click += (_, _) => CopyText(".\\scripts\\configure-cursor.ps1 -Scope project");
+        var ensureAgent = new Button { Content = "Ensure agent process" };
+        ensureAgent.Click += async (_, _) =>
+        {
+            try
+            {
+                await App.Bridge.EnsureAgentAsync();
+                await RefreshAsync(false);
+                RenderSection();
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = ex.Message;
+            }
+        };
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        row.Children.Add(configureCursor);
+        row.Children.Add(ensureAgent);
+        ContentHost.Children.Add(Wrap(row));
+    }
+
+    private void RenderAdapterHealth(string title, AdapterHealthInfo? health, string setupCommand)
+    {
+        if (health is null)
+        {
+            ContentHost.Children.Add(Card($"{title}: adapter not reported"));
+            return;
+        }
+
+        var bridge = health.BridgeListening ? "bridge listening" : "bridge not listening";
+        var plugin = health.PluginConnected ? "plugin connected" : "plugin not connected";
+        var detail = string.IsNullOrWhiteSpace(health.Detail) ? "" : $" · {health.Detail}";
+        ContentHost.Children.Add(Card($"{title}: {bridge} · {plugin}{detail}"));
+        var copy = new Button { Content = $"Copy {title} setup command" };
+        copy.Click += (_, _) => CopyText(setupCommand);
+        ContentHost.Children.Add(copy);
+    }
+
+    private async Task SetTelemetryAsync(bool enabled)
+    {
+        var settings = App.Host.Settings.Get();
+        settings.Privacy.TelemetryEnabled = enabled;
+        App.Host.Settings.Save(settings);
+        try
+        {
+            await App.Bridge.CallAsync(CommandNames.SystemTelemetrySet, new { enabled });
+            await RefreshAsync(true);
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Telemetry preference saved locally; agent update failed: {ex.Message}";
+        }
+    }
+
+    private static void CopyText(string text)
+    {
+        var pkg = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        pkg.SetText(text);
+        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(pkg);
     }
 
     private static Border Toggle(string label, bool initial, Action<bool> changed)

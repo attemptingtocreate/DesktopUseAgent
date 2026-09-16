@@ -188,7 +188,12 @@ public class PlanExecutorUnitTests
     {
         public bool WindowExists { get; set; } = true;
 
-        public Task<bool> WindowExistsAsync(string? process, string? titleContains, string? windowId, CancellationToken cancellationToken)
+        public Task<bool> WindowExistsAsync(
+            string? process,
+            string? titleContains,
+            string? windowId,
+            CancellationToken cancellationToken,
+            string? titleRegex = null)
             => Task.FromResult(WindowExists);
 
         public Task<bool> ProcessRunningAsync(string processName, CancellationToken cancellationToken) => Task.FromResult(true);

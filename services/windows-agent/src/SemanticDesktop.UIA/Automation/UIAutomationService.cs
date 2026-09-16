@@ -395,16 +395,23 @@ public sealed class UIAutomationService : IUIAutomationService, IDisposable
         var runtimeKey = GetRuntimeKey(element);
         var stableId = "uia_" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(runtimeKey)))[..16].ToLowerInvariant();
 
-        foreach (var id in _handles.ListIds(HandleKind.Element))
+        if (_handles.TryGetElementByRuntimeKey(runtimeKey, out var indexedId) &&
+            _handles.TryGet(indexedId, out var indexedEntry) &&
+            indexedEntry.NativeKey is CachedElement indexedCached &&
+            indexedCached.RuntimeKey == runtimeKey &&
+            indexedCached.Element.IsAvailable)
         {
-            if (_handles.TryGet(id, out var entry) &&
-                entry.NativeKey is CachedElement cached &&
-                cached.RuntimeKey == runtimeKey &&
-                cached.Element.IsAvailable)
-            {
-                _cache.Set(id, cached);
-                return id;
-            }
+            _cache.Set(indexedId, indexedCached);
+            return indexedId;
+        }
+
+        if (_handles.TryGet(stableId, out var stableEntry) &&
+            stableEntry.NativeKey is CachedElement stableCached &&
+            stableCached.RuntimeKey == runtimeKey &&
+            stableCached.Element.IsAvailable)
+        {
+            _cache.Set(stableId, stableCached);
+            return stableId;
         }
 
         var wrapped = new CachedElement(element, runtimeKey, windowId);

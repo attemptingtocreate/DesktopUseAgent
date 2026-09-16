@@ -11,6 +11,7 @@ namespace SemanticDesktop.ControlCenter.Client;
 /// </summary>
 public sealed class AgentBridge
 {
+    private static readonly SemaphoreSlim StartGate = new(1, 1);
     private readonly string _pipeName;
     private readonly string? _agentProjectOrDll;
 
@@ -43,57 +44,71 @@ public sealed class AgentBridge
 
     public async Task EnsureAgentAsync(CancellationToken cancellationToken = default)
     {
-        if (await PingAsync(cancellationToken).ConfigureAwait(false))
-        {
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(_agentProjectOrDll))
-        {
-            throw new InvalidOperationException("Agent is not running and no launch path was configured.");
-        }
-
-        var psi = new ProcessStartInfo
-        {
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WindowStyle = ProcessWindowStyle.Hidden
-        };
-
-        if (_agentProjectOrDll.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
-        {
-            psi.FileName = "dotnet";
-            psi.ArgumentList.Add("run");
-            psi.ArgumentList.Add("--project");
-            psi.ArgumentList.Add(_agentProjectOrDll);
-            psi.ArgumentList.Add("--");
-            psi.ArgumentList.Add($"--pipe={_pipeName}");
-        }
-        else if (_agentProjectOrDll.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-        {
-            psi.FileName = _agentProjectOrDll;
-            psi.ArgumentList.Add($"--pipe={_pipeName}");
-        }
-        else
-        {
-            psi.FileName = "dotnet";
-            psi.ArgumentList.Add(_agentProjectOrDll);
-            psi.ArgumentList.Add($"--pipe={_pipeName}");
-        }
-
-        _ = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start agent process.");
-
-        for (var i = 0; i < 40; i++)
+        await StartGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
             if (await PingAsync(cancellationToken).ConfigureAwait(false))
             {
                 return;
             }
 
-            await Task.Delay(250, cancellationToken).ConfigureAwait(false);
-        }
+            await Task.Delay(150, cancellationToken).ConfigureAwait(false);
+            if (await PingAsync(cancellationToken).ConfigureAwait(false))
+            {
+                return;
+            }
 
-        throw new TimeoutException("Timed out waiting for agent to become ready.");
+            if (string.IsNullOrWhiteSpace(_agentProjectOrDll))
+            {
+                throw new InvalidOperationException("Agent is not running and no launch path was configured.");
+            }
+
+            var psi = new ProcessStartInfo
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+
+            if (_agentProjectOrDll.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+            {
+                psi.FileName = "dotnet";
+                psi.ArgumentList.Add("run");
+                psi.ArgumentList.Add("--project");
+                psi.ArgumentList.Add(_agentProjectOrDll);
+                psi.ArgumentList.Add("--");
+                psi.ArgumentList.Add($"--pipe={_pipeName}");
+            }
+            else if (_agentProjectOrDll.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            {
+                psi.FileName = _agentProjectOrDll;
+                psi.ArgumentList.Add($"--pipe={_pipeName}");
+            }
+            else
+            {
+                psi.FileName = "dotnet";
+                psi.ArgumentList.Add(_agentProjectOrDll);
+                psi.ArgumentList.Add($"--pipe={_pipeName}");
+            }
+
+            _ = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start agent process.");
+
+            for (var i = 0; i < 40; i++)
+            {
+                if (await PingAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    return;
+                }
+
+                await Task.Delay(250, cancellationToken).ConfigureAwait(false);
+            }
+
+            throw new TimeoutException("Timed out waiting for agent to become ready.");
+        }
+        finally
+        {
+            StartGate.Release();
+        }
     }
 
     public Task<JsonElement> CallAsync(string method, object? parameters = null, CancellationToken cancellationToken = default) =>
@@ -112,8 +127,37 @@ public sealed class AgentBridge
         var pending = await CallAsync(CommandNames.PermissionPending, new { }, cancellationToken).ConfigureAwait(false);
         var audit = await CallAsync(CommandNames.AuditList, new { take = 40 }, cancellationToken).ConfigureAwait(false);
         var policy = await CallAsync(CommandNames.PermissionPolicyGet, new { }, cancellationToken).ConfigureAwait(false);
+        JsonElement? integrity = null;
+        JsonElement? telemetry = null;
+        JsonElement? adapters = null;
+        try
+        {
+            integrity = await CallAsync(CommandNames.SystemIntegrity, new { }, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            // health view is best-effort
+        }
 
-        return ControlCenterSnapshot.FromRpc(_pipeName, status, sessions, pending, audit, policy);
+        try
+        {
+            telemetry = await CallAsync(CommandNames.SystemTelemetryGet, new { }, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            // health view is best-effort
+        }
+
+        try
+        {
+            adapters = await CallAsync(CommandNames.AdapterList, new { }, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            // health view is best-effort
+        }
+
+        return ControlCenterSnapshot.FromRpc(_pipeName, status, sessions, pending, audit, policy, integrity, telemetry, adapters);
     }
 }
 
@@ -131,6 +175,14 @@ public sealed class ControlCenterSnapshot
     public IReadOnlyList<AppRuleInfo> AppRules { get; init; } = Array.Empty<AppRuleInfo>();
     public IReadOnlyList<PathRuleInfo> PathRules { get; init; } = Array.Empty<PathRuleInfo>();
     public bool McpSessionPresent { get; init; }
+    public string? ApiVersion { get; init; }
+    public string? ProductVersion { get; init; }
+    public string? InstallRoot { get; init; }
+    public bool TelemetryEnabled { get; init; }
+    public bool IntegrityOk { get; init; }
+    public IReadOnlyList<string> IntegrityIssues { get; init; } = Array.Empty<string>();
+    public AdapterHealthInfo? RobloxHealth { get; init; }
+    public AdapterHealthInfo? BlenderHealth { get; init; }
 
     public static ControlCenterSnapshot Disconnected(string pipeName) => new()
     {
@@ -144,7 +196,10 @@ public sealed class ControlCenterSnapshot
         JsonElement sessionsResult,
         JsonElement pendingResult,
         JsonElement auditResult,
-        JsonElement policyResult)
+        JsonElement policyResult,
+        JsonElement? integrityResult = null,
+        JsonElement? telemetryResult = null,
+        JsonElement? adaptersResult = null)
     {
         var status = UnwrapData(statusResult);
         var sessions = UnwrapArray(sessionsResult);
@@ -155,6 +210,23 @@ public sealed class ControlCenterSnapshot
         var sessionInfos = sessions.Select(SessionInfo.Parse).Where(s => s is not null).Cast<SessionInfo>().ToList();
         var mcp = sessionInfos.Any(s =>
             s.ClientId.Contains("mcp", StringComparison.OrdinalIgnoreCase));
+
+        var integrityData = integrityResult is null ? default : UnwrapData(integrityResult.Value);
+        var integrityOk = integrityData.ValueKind == JsonValueKind.Object &&
+                          integrityData.TryGetProperty("ok", out var okProp) &&
+                          okProp.GetBoolean();
+        var integrityIssues = integrityData.ValueKind == JsonValueKind.Object &&
+                              integrityData.TryGetProperty("issues", out var issuesProp) &&
+                              issuesProp.ValueKind == JsonValueKind.Array
+            ? issuesProp.EnumerateArray().Select(i => i.GetString() ?? "").Where(s => s.Length > 0).ToList()
+            : new List<string>();
+
+        var telemetryData = telemetryResult is null ? default : UnwrapData(telemetryResult.Value);
+        var telemetryEnabled = telemetryData.ValueKind == JsonValueKind.Object &&
+                               telemetryData.TryGetProperty("enabled", out var te) &&
+                               te.GetBoolean();
+
+        var adapterList = adaptersResult is null ? new List<JsonElement>() : UnwrapArray(adaptersResult.Value);
 
         return new ControlCenterSnapshot
         {
@@ -175,7 +247,15 @@ public sealed class ControlCenterSnapshot
             PathRules = policy.TryGetProperty("pathRules", out var paths) && paths.ValueKind == JsonValueKind.Array
                 ? paths.EnumerateArray().Select(PathRuleInfo.Parse).Where(p => p is not null).Cast<PathRuleInfo>().ToList()
                 : Array.Empty<PathRuleInfo>(),
-            McpSessionPresent = mcp
+            McpSessionPresent = mcp,
+            ApiVersion = status.TryGetProperty("apiVersion", out var av) ? av.GetString() : null,
+            ProductVersion = status.TryGetProperty("productVersion", out var pv) ? pv.GetString() : null,
+            InstallRoot = status.TryGetProperty("installRoot", out var ir) ? ir.GetString() : null,
+            TelemetryEnabled = status.TryGetProperty("telemetryEnabled", out var st) && st.GetBoolean() || telemetryEnabled,
+            IntegrityOk = integrityResult is null || integrityOk,
+            IntegrityIssues = integrityIssues,
+            RobloxHealth = AdapterHealthInfo.Parse(adapterList, "roblox"),
+            BlenderHealth = AdapterHealthInfo.Parse(adapterList, "blender")
         };
     }
 
@@ -303,6 +383,40 @@ public sealed record AppRuleInfo(string ProcessName, string Observe, string Inte
             name,
             el.TryGetProperty("observe", out var o) ? o.GetString() ?? "Allow" : "Allow",
             el.TryGetProperty("interact", out var i) ? i.GetString() ?? "Allow" : "Allow");
+    }
+}
+
+public sealed record AdapterHealthInfo(
+    string AdapterId,
+    bool Available,
+    bool BridgeListening,
+    bool PluginConnected,
+    string? Detail)
+{
+    public static AdapterHealthInfo? Parse(IReadOnlyList<JsonElement> adapters, string adapterId)
+    {
+        var match = adapters.FirstOrDefault(a =>
+            a.ValueKind == JsonValueKind.Object &&
+            a.TryGetProperty("adapterId", out var id) &&
+            string.Equals(id.GetString(), adapterId, StringComparison.OrdinalIgnoreCase));
+        if (match.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var available = match.TryGetProperty("available", out var av) && av.GetBoolean();
+        var metadata = match.TryGetProperty("meta", out var md) && md.ValueKind == JsonValueKind.Object ? md : default;
+        var listening = metadata.ValueKind == JsonValueKind.Object &&
+                        ((metadata.TryGetProperty("bridgeListening", out var bl) && bl.GetBoolean()) ||
+                         (metadata.TryGetProperty("liveBridgeListening", out var lbl) && lbl.GetBoolean()));
+        var connected = metadata.ValueKind == JsonValueKind.Object &&
+                        ((metadata.TryGetProperty("pluginConnected", out var pc) && pc.GetBoolean()) ||
+                         (metadata.TryGetProperty("liveSessionConnected", out var asc) && asc.GetBoolean()) ||
+                         (metadata.TryGetProperty("addonConnected", out var ac) && ac.GetBoolean()));
+        var detail = metadata.ValueKind == JsonValueKind.Object && metadata.TryGetProperty("liveBridgeStartError", out var err)
+            ? err.GetString()
+            : null;
+        return new AdapterHealthInfo(adapterId, available, listening, connected, detail);
     }
 }
 

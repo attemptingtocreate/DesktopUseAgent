@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Text.Json;
+using SemanticDesktop.Cli;
 using SemanticDesktop.Core.Commands;
 using SemanticDesktop.Core.Serialization;
 using SemanticDesktop.IPC;
@@ -28,11 +29,22 @@ if (command == "agent")
     return await RunAgentHostAsync(pipeName).ConfigureAwait(false);
 }
 
+if (command == "benchmark")
+{
+    return await RunBenchmarkAsync(pipeName, commandArgs.Skip(1).ToList()).ConfigureAwait(false);
+}
+
 try
 {
     await EnsureAgentAsync(pipeName).ConfigureAwait(false);
     await using var client = new NamedPipeClient(pipeName);
     await client.ConnectAsync(CancellationToken.None, timeoutMs: 10000).ConfigureAwait(false);
+
+    if (command == "call")
+    {
+        return await RunCallAsync(client, commandArgs.Skip(1).ToList()).ConfigureAwait(false);
+    }
+
     await DispatchClientCommandAsync(client, command, commandArgs).ConfigureAwait(false);
     return 0;
 }
@@ -391,6 +403,85 @@ static void PrintJson(JsonElement result)
     }));
 }
 
+static async Task<int> RunBenchmarkAsync(string pipeName, List<string> args)
+{
+    var options = ParseBenchmarkOptions(args);
+    if (options.DryRun)
+    {
+        var plan = new BenchmarkRunner(new NoopBenchmarkAgentClient()).CreateDryRunPlan(options);
+        Console.WriteLine(JsonSerializer.Serialize(plan, BenchmarkJsonOptions()));
+        return 0;
+    }
+
+    await EnsureAgentAsync(pipeName).ConfigureAwait(false);
+    await using var client = new PipeBenchmarkAgentClient(pipeName);
+    await client.ConnectAsync(CancellationToken.None).ConfigureAwait(false);
+    var summary = await new BenchmarkRunner(client).RunAsync(options, CancellationToken.None).ConfigureAwait(false);
+    Console.WriteLine(JsonSerializer.Serialize(summary, BenchmarkJsonOptions()));
+    return summary.Scenarios.Any(s => s.Status == "failed") ? 1 : 0;
+}
+
+static async Task<int> RunCallAsync(NamedPipeClient client, List<string> args)
+{
+    if (args.Count == 0)
+    {
+        throw new ArgumentException("Usage: semantic-desktop call <method> [json]");
+    }
+
+    var method = args[0];
+    JsonElement? parameters = null;
+    if (args.Count > 1)
+    {
+        parameters = JsonSerializer.Deserialize<JsonElement>(string.Join(' ', args.Skip(1)));
+    }
+
+    var started = DateTimeOffset.UtcNow;
+    var result = await client.SendAsync(method, parameters, CancellationToken.None).ConfigureAwait(false);
+    var envelope = new
+    {
+        method,
+        wallMs = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds,
+        result
+    };
+    Console.WriteLine(JsonSerializer.Serialize(envelope, BenchmarkJsonOptions()));
+    return result.TryGetProperty("ok", out var ok) && ok.GetBoolean() ? 0 : 1;
+}
+
+static BenchmarkOptions ParseBenchmarkOptions(List<string> args)
+{
+    var options = new BenchmarkOptions();
+    for (var i = 0; i < args.Count; i++)
+    {
+        switch (args[i].ToLowerInvariant())
+        {
+            case "--dry-run":
+                options = options with { DryRun = true };
+                break;
+            case "--live":
+                options = options with { Live = true };
+                break;
+            case "--iterations" when i + 1 < args.Count && int.TryParse(args[++i], out var iterations):
+                options = options with { Iterations = Math.Max(1, iterations) };
+                break;
+            case "--monitor" when i + 1 < args.Count && int.TryParse(args[++i], out var monitor):
+                options = options with { Monitor = monitor };
+                break;
+            case "--url" when i + 1 < args.Count:
+                options = options with { Url = args[++i] };
+                break;
+        }
+    }
+
+    return options;
+}
+
+static JsonSerializerOptions BenchmarkJsonOptions() =>
+    new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false
+    };
+
 static void PrintHelp()
 {
     Console.WriteLine("""
@@ -398,6 +489,8 @@ static void PrintHelp()
 
         Commands:
           agent
+          call <method> [json]
+          benchmark [--dry-run] [--live] [--iterations N] [--monitor M] [--url URL]
           windows
           focus <windowId>
           tree <windowId> [--depth N]
@@ -418,5 +511,7 @@ static void PrintHelp()
           Commands auto-start a background agent on the named pipe if needed.
           Element/window handles remain valid while that agent process is alive.
           `plan demo` runs launch→wait→find→set-value→save→file.exists locally.
+          `benchmark --dry-run` prints the scenario plan without contacting the agent.
         """);
 }
+

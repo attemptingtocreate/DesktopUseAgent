@@ -3,9 +3,12 @@ using SemanticDesktop.Core.Models;
 
 namespace SemanticDesktop.Adapters;
 
+public delegate ProcessInfo? AdapterProcessResolver(string? processId, string? windowId);
+
 public sealed class AdapterRegistry
 {
     private readonly List<IApplicationAdapter> _adapters = new();
+    private AdapterProcessResolver? _processResolver;
 
     public AdapterRegistry(IEnumerable<IApplicationAdapter>? adapters = null)
     {
@@ -30,6 +33,8 @@ public sealed class AdapterRegistry
 
     public IApplicationAdapter? Resolve(ProcessInfo process) =>
         _adapters.FirstOrDefault(a => a.CanHandle(process));
+
+    public void SetProcessResolver(AdapterProcessResolver? resolver) => _processResolver = resolver;
 
     public IApplicationAdapter? ResolveByAction(string action)
     {
@@ -67,6 +72,15 @@ public sealed class AdapterRegistry
         }
 
         adapter ??= ResolveByAction(command.Action);
+        if (adapter is null && _processResolver is not null)
+        {
+            var process = _processResolver(command.ProcessId, command.WindowId);
+            if (process is not null)
+            {
+                adapter = Resolve(process);
+            }
+        }
+
         if (adapter is null)
         {
             return AdapterResult.Fail(ErrorCodes.AdapterNotFound, $"No adapter for '{command.Action}'.");
@@ -80,6 +94,7 @@ public sealed class AdapterRegistry
         "vscode" => "vscode",
         "visualstudio" => "visualstudio",
         "blender" => "blender",
+        "roblox" => "roblox",
         _ => prefix
     };
 }

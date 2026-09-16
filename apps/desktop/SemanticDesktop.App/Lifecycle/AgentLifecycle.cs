@@ -101,6 +101,7 @@ public sealed class AgentBridgeProcessGateway : IAgentProcessGateway
 
 public sealed class AgentLifecycle
 {
+    private static readonly SemaphoreSlim StartGate = new(1, 1);
     private readonly IAgentProcessGateway _gateway;
     private readonly AppSettingsStore _settings;
     private int? _startedPid;
@@ -115,15 +116,29 @@ public sealed class AgentLifecycle
 
     public async Task EnsureAgentAsync(CancellationToken cancellationToken = default)
     {
-        if (await _gateway.PingAsync(cancellationToken).ConfigureAwait(false))
+        await StartGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            return;
-        }
+            if (await _gateway.PingAsync(cancellationToken).ConfigureAwait(false))
+            {
+                return;
+            }
 
-        _startedPid = await _gateway.StartAsync(cancellationToken).ConfigureAwait(false);
-        if (!await _gateway.PingAsync(cancellationToken).ConfigureAwait(false))
+            await Task.Delay(150, cancellationToken).ConfigureAwait(false);
+            if (await _gateway.PingAsync(cancellationToken).ConfigureAwait(false))
+            {
+                return;
+            }
+
+            _startedPid = await _gateway.StartAsync(cancellationToken).ConfigureAwait(false);
+            if (!await _gateway.PingAsync(cancellationToken).ConfigureAwait(false))
+            {
+                throw new TimeoutException("Agent did not become ready after start.");
+            }
+        }
+        finally
         {
-            throw new TimeoutException("Agent did not become ready after start.");
+            StartGate.Release();
         }
     }
 
@@ -153,6 +168,26 @@ public sealed class AgentLifecycle
 
     public static McpGatewayStatus ProbeMcpGateway(string? repoRoot = null)
     {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var installRoot = SemanticDesktop.Core.Production.InstallRootResolver.ResolveInstallRoot(
+            Environment.GetEnvironmentVariable("DESKTOPUSEAGENT_INSTALL"),
+            localAppData,
+            AppContext.BaseDirectory);
+        if (installRoot is not null)
+        {
+            var installedEntry = Path.Combine(installRoot, "mcp", "dist", "index.js");
+            if (File.Exists(installedEntry))
+            {
+                return new McpGatewayStatus
+                {
+                    AvailableAsStdioModule = true,
+                    Path = Path.Combine(installRoot, "mcp"),
+                    EntryPath = installedEntry,
+                    ProductVersion = ReadVersionFile(Path.Combine(installRoot, "VERSION"))
+                };
+            }
+        }
+
         var roots = new List<string>();
         if (!string.IsNullOrWhiteSpace(repoRoot))
         {
@@ -164,6 +199,7 @@ public sealed class AgentLifecycle
         try
         {
             roots.Add(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..")));
+            roots.Add(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "mcp")));
         }
         catch
         {
@@ -172,18 +208,33 @@ public sealed class AgentLifecycle
 
         foreach (var root in roots.Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            var path = Path.Combine(root, "apps", "mcp-server");
-            if (Directory.Exists(path) && File.Exists(Path.Combine(path, "package.json")))
+            var devRoot = Path.Combine(root, "apps", "mcp-server");
+            var devEntry = Path.Combine(devRoot, "dist", "index.js");
+            if (File.Exists(devEntry))
             {
                 return new McpGatewayStatus
                 {
                     AvailableAsStdioModule = true,
-                    Path = path
+                    Path = devRoot,
+                    EntryPath = devEntry,
+                    ProductVersion = ReadVersionFile(Path.Combine(root, "VERSION"))
                 };
             }
         }
 
         return new McpGatewayStatus { AvailableAsStdioModule = false };
+    }
+
+    private static string? ReadVersionFile(string path)
+    {
+        try
+        {
+            return File.Exists(path) ? File.ReadAllText(path).Trim() : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }
 

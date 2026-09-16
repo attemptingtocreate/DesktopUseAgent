@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/mcp-server/package-lock.json
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Validate tag matches VERSION
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $tag = "${{ github.ref_name }}"
+          if ($tag.StartsWith('v')) { $tag = $tag.Substring(1) }
+          if ($tag -ne $version) {
+            throw "Tag '$(${{ github.ref_name }})' does not match VERSION '$version'."
+          }
+
+      - name: Build release artifact
+        shell: pwsh
+        run: ./scripts/release.ps1 -SkipTests
+
+      - name: Optional Authenticode signing
+        shell: pwsh
+        env:
+          SIGN_THUMBPRINT: ${{ secrets.SIGN_THUMBPRINT }}
+          SIGN_CERT_PATH: ${{ secrets.SIGN_CERT_PATH }}
+          SIGN_CERT_PASSWORD: ${{ secrets.SIGN_CERT_PASSWORD }}
+        run: |
+          if ($env:SIGN_THUMBPRINT -or $env:SIGN_CERT_PATH) {
+            ./scripts/sign.ps1
+            ./scripts/release.ps1 -SkipTests
+          } else {
+            Write-Host "Signing secrets not configured; publishing unsigned artifact."
+          }
+
+      - name: Upload GitHub Release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $zip = "artifacts/release/DesktopUseAgent-$version-win-x64.zip"
+          $sha = "$zip.sha256"
+          gh release create "${{ github.ref_name }}" $zip $sha --title "DesktopUseAgent $version (win-x64 developer preview)" --notes "Windows x64 developer-preview release. See README.md for install and Cursor setup."

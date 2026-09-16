@@ -61,6 +61,7 @@
                 <NavigationViewItem Content="MCPs" Tag="mcps" />
                 <NavigationViewItem Content="Activity" Tag="activity" />
                 <NavigationViewItem Content="Permissions" Tag="permissions" />
+                <NavigationViewItem Content="Health" Tag="health" />
                 <NavigationViewItem Content="Settings" Tag="settings" />
             </NavigationView.MenuItems>
             <NavigationView.FooterMenuItems>

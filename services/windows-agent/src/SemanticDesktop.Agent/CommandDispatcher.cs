@@ -1,6 +1,7 @@
 using System.Text.Json;
 using SemanticDesktop.Adapters;
 using SemanticDesktop.Adapters.Blender;
+using SemanticDesktop.Adapters.RobloxStudio;
 using SemanticDesktop.Adapters.VisualStudio;
 using SemanticDesktop.Adapters.VsCode;
 using SemanticDesktop.Audit;
@@ -8,6 +9,7 @@ using SemanticDesktop.Browser;
 using SemanticDesktop.Core.Commands;
 using SemanticDesktop.Core.Errors;
 using SemanticDesktop.Core.Handles;
+using SemanticDesktop.Core.Metrics;
 using SemanticDesktop.Core.Models;
 using SemanticDesktop.Core.Plans;
 using SemanticDesktop.Core.Production;
@@ -23,6 +25,7 @@ using SemanticDesktop.IPC;
 using SemanticDesktop.Permissions;
 using SemanticDesktop.UIA.Automation;
 using SemanticDesktop.Win32.Input;
+using SemanticDesktop.Win32.Monitors;
 using SemanticDesktop.Win32.Processes;
 using SemanticDesktop.Win32.Vision;
 using SemanticDesktop.Win32.Windows;
@@ -32,6 +35,7 @@ namespace SemanticDesktop.Agent;
 public sealed class CommandDispatcher : IDisposable
 {
     private readonly HandleRegistry _handles = new();
+    private readonly MonitorService _monitors;
     private readonly WindowService _windows;
     private readonly ProcessService _processes;
     private readonly UIAutomationService _uia;
@@ -41,36 +45,56 @@ public sealed class CommandDispatcher : IDisposable
     private readonly ConditionEvaluator _conditions;
     private readonly SecurityContext _security;
     private readonly AdapterRegistry _adapters;
+    private readonly IRobloxBridge _robloxBridge;
+    private readonly RobloxStudioAdapter _robloxAdapter;
+    private readonly RobloxOpenPlaceCoordinator _robloxOpenPlace;
+    private readonly IBlenderBridge _blenderBridge;
+    private readonly BlenderAdapter _blenderAdapter;
     private readonly InputService _input = new();
-    private readonly IVisionCaptureProvider _vision = new GdiVisionCaptureProvider();
+    private readonly IVisionCaptureProvider _vision;
     private readonly DesktopGraphService _graph;
     private readonly SemanticCache _semanticCache = new();
+    private readonly OperationTimingStore _operationTimings = new();
     private readonly DesktopEventHub _events = new();
     private readonly ProductionRuntime _prod;
 
     public CommandDispatcher(string? dataRoot = null)
     {
         _prod = ProductionRuntime.Create(dataRoot);
-        _windows = new WindowService(_handles);
+        _monitors = new MonitorService();
+        _windows = new WindowService(_handles, _monitors);
+        _vision = new GdiVisionCaptureProvider(_monitors);
         _processes = new ProcessService(_handles);
         _uia = new UIAutomationService(_handles, _windows);
         _browser = new BrowserService(_handles);
         _graph = new DesktopGraphService(_windows, _uia);
         _conditions = new ConditionEvaluator(new ConditionProbe(_windows, _uia), _files);
         _plans = new PlanExecutor(_conditions, RunActionAsJsonAsync);
+        var robloxToken = new RobloxBridgeTokenStore(_prod.DataRoot).GetOrCreate();
+        _robloxBridge = new RobloxStudioBridge(new RobloxBridgeOptions { Token = robloxToken });
+        _robloxBridge.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+        _robloxAdapter = new RobloxStudioAdapter(_robloxBridge);
+        _robloxOpenPlace = new RobloxOpenPlaceCoordinator(_windows);
+        var blenderToken = new BlenderBridgeTokenStore(_prod.DataRoot).GetOrCreate();
+        _blenderBridge = new BlenderStudioBridge(new BlenderBridgeOptions { Token = blenderToken });
+        _blenderBridge.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+        _blenderAdapter = new BlenderAdapter(_blenderBridge);
         _adapters = new AdapterRegistry(new IApplicationAdapter[]
         {
-            new BlenderAdapter(),
+            _blenderAdapter,
             new VsCodeAdapter(),
-            new VisualStudioAdapter()
+            new VisualStudioAdapter(),
+            _robloxAdapter
         });
+        _adapters.SetProcessResolver((processId, windowId) => _windows.TryResolveProcess(processId, windowId));
         _security = new SecurityContext
         {
             Engine = _prod.Engine,
             Sessions = new SessionManager(),
             Approvals = new ApprovalBroker(),
             Emergency = new EmergencyStopGate(),
-            Audit = _prod.Audit
+            Audit = _prod.Audit,
+            Windows = _windows
         };
         _ = _security.Sessions.GetOrCreateDefault();
     }
@@ -98,6 +122,7 @@ public sealed class CommandDispatcher : IDisposable
                     gate.Evaluation?.Target,
                     gate.ErrorCode);
 
+                RecordOperationTiming(request.Method, started, success: false);
                 return ToolResult<object>.Failure(
                     new ErrorInfo
                     {
@@ -116,6 +141,7 @@ public sealed class CommandDispatcher : IDisposable
                 _semanticCache.TryGet(request.Method, request.Params, out var cachedJson))
             {
                 var hit = CacheHitResult(cachedJson, request.Method, requestId, started);
+                RecordOperationTiming(request.Method, started, success: true);
                 _security.WriteAudit(
                     session,
                     request.Method,
@@ -137,6 +163,7 @@ public sealed class CommandDispatcher : IDisposable
                 .ConfigureAwait(false);
 
             var success = result is not null && IsOk(result);
+            RecordOperationTiming(request.Method, started, success);
             _prod.RecordTelemetry(success, request.Method);
             if (success)
             {
@@ -171,6 +198,7 @@ public sealed class CommandDispatcher : IDisposable
         }
         catch (Exception ex)
         {
+            RecordOperationTiming(request.Method, started, success: false);
             _prod.RecordCrash(ex, recovered: true);
             _security.WriteAudit(
                 session,
@@ -205,8 +233,15 @@ public sealed class CommandDispatcher : IDisposable
     {
         return request.Method switch
         {
+            CommandNames.MonitorList => MonitorListAsync(requestId, started),
             CommandNames.WindowList => await WindowListAsync(requestId, started, cancellationToken).ConfigureAwait(false),
+            CommandNames.WindowGet => await WindowGetAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
             CommandNames.WindowFocus => await WindowFocusAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
+            CommandNames.WindowMinimize => await WindowMinimizeAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
+            CommandNames.WindowMaximize => await WindowMaximizeAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
+            CommandNames.WindowRestore => await WindowRestoreAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
+            CommandNames.WindowMove => await WindowMoveAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
+            CommandNames.WindowResize => await WindowResizeAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
             CommandNames.UiGetTree => await UiGetTreeAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
             CommandNames.UiFind => await UiFindAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
             CommandNames.UiInvoke => await UiInvokeAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
@@ -244,6 +279,7 @@ public sealed class CommandDispatcher : IDisposable
             CommandNames.PermissionPolicySet => PermissionPolicySet(requestId, started, request.Params),
             CommandNames.AuditList => AuditList(requestId, started, request.Params),
             CommandNames.SystemStatus => SystemStatus(requestId, started),
+            CommandNames.SystemPerformance => SystemPerformance(requestId, started),
             CommandNames.SystemEmergencyStop => EmergencyStop(requestId, started),
             CommandNames.SystemEmergencyStopClear => EmergencyClear(requestId, started),
             CommandNames.AdapterList => await AdapterListAsync(requestId, started, cancellationToken).ConfigureAwait(false),
@@ -251,9 +287,12 @@ public sealed class CommandDispatcher : IDisposable
             CommandNames.AdapterExecute
                 or CommandNames.BlenderOpen or CommandNames.BlenderGetScene or CommandNames.BlenderGetObjects
                 or CommandNames.BlenderSelectObject or CommandNames.BlenderExecutePython or CommandNames.BlenderExport or CommandNames.BlenderSave
+                or CommandNames.BlenderBatch or CommandNames.BlenderRender or CommandNames.BlenderImportMesh
                 or CommandNames.VsCodeOpenFile or CommandNames.VsCodeOpenFolder or CommandNames.VsCodeExecuteCommand or CommandNames.VsCodeGetWorkspace
                 or CommandNames.VisualStudioGetSolution or CommandNames.VisualStudioBuild
                 or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
+                or CommandNames.RobloxOpenPlace or CommandNames.RobloxPluginPing or CommandNames.RobloxGetHierarchy
+                or CommandNames.RobloxGetSelection or CommandNames.RobloxSelect or CommandNames.RobloxSetProperty
                 => await AdapterExecuteAsync(request, requestId, started, cancellationToken).ConfigureAwait(false),
             CommandNames.InputMouseMove or CommandNames.InputMouseClick or CommandNames.InputMouseDrag
                 or CommandNames.InputScroll or CommandNames.InputKey or CommandNames.InputHotkey or CommandNames.InputType
@@ -399,6 +438,123 @@ public sealed class CommandDispatcher : IDisposable
             BuildPerformance(CommandNames.WindowFocus, started, provider: "Win32"),
             stateChanged: true);
     }
+
+    private object MonitorListAsync(string requestId, DateTimeOffset started)
+    {
+        var monitors = _monitors.List(forceRefresh: true);
+        return ToolResult<IReadOnlyList<MonitorInfo>>.Success(
+            monitors,
+            ResultMeta.Create(requestId, started),
+            new PerformanceMeta
+            {
+                Operation = CommandNames.MonitorList,
+                DurationMs = Elapsed(started),
+                ElementsInspected = monitors.Count,
+                CacheHit = false,
+                Provider = "Win32"
+            });
+    }
+
+    private async Task<object> WindowGetAsync(string requestId, DateTimeOffset started, JsonElement? parameters, CancellationToken ct)
+    {
+        var req = Deserialize<WindowIdRequest>(parameters);
+        var window = await _windows.GetAsync(req.WindowId, ct).ConfigureAwait(false);
+        if (window is null)
+        {
+            return WindowStaleFailure<WindowInfo>(CommandNames.WindowGet, requestId, started);
+        }
+
+        return ToolResult<WindowInfo>.Success(
+            window,
+            ResultMeta.Create(requestId, started),
+            BuildPerformance(CommandNames.WindowGet, started, provider: "Win32"));
+    }
+
+    private async Task<object> WindowMinimizeAsync(string requestId, DateTimeOffset started, JsonElement? parameters, CancellationToken ct)
+    {
+        var req = Deserialize<WindowIdRequest>(parameters);
+        var window = await _windows.MinimizeAsync(req.WindowId, ct).ConfigureAwait(false);
+        if (window is null)
+        {
+            return WindowStaleFailure<WindowInfo>(CommandNames.WindowMinimize, requestId, started);
+        }
+
+        return ToolResult<WindowInfo>.Success(
+            window,
+            ResultMeta.Create(requestId, started),
+            BuildPerformance(CommandNames.WindowMinimize, started, provider: "Win32"),
+            stateChanged: true);
+    }
+
+    private async Task<object> WindowMaximizeAsync(string requestId, DateTimeOffset started, JsonElement? parameters, CancellationToken ct)
+    {
+        var req = Deserialize<WindowIdRequest>(parameters);
+        var window = await _windows.MaximizeAsync(req.WindowId, ct).ConfigureAwait(false);
+        if (window is null)
+        {
+            return WindowStaleFailure<WindowInfo>(CommandNames.WindowMaximize, requestId, started);
+        }
+
+        return ToolResult<WindowInfo>.Success(
+            window,
+            ResultMeta.Create(requestId, started),
+            BuildPerformance(CommandNames.WindowMaximize, started, provider: "Win32"),
+            stateChanged: true);
+    }
+
+    private async Task<object> WindowRestoreAsync(string requestId, DateTimeOffset started, JsonElement? parameters, CancellationToken ct)
+    {
+        var req = Deserialize<WindowIdRequest>(parameters);
+        var window = await _windows.RestoreAsync(req.WindowId, ct).ConfigureAwait(false);
+        if (window is null)
+        {
+            return WindowStaleFailure<WindowInfo>(CommandNames.WindowRestore, requestId, started);
+        }
+
+        return ToolResult<WindowInfo>.Success(
+            window,
+            ResultMeta.Create(requestId, started),
+            BuildPerformance(CommandNames.WindowRestore, started, provider: "Win32"),
+            stateChanged: true);
+    }
+
+    private async Task<object> WindowMoveAsync(string requestId, DateTimeOffset started, JsonElement? parameters, CancellationToken ct)
+    {
+        var req = Deserialize<WindowMoveRequest>(parameters);
+        var result = await _windows.MoveAsync(req, ct).ConfigureAwait(false);
+        if (result is null)
+        {
+            return WindowStaleFailure<WindowMutationResult>(CommandNames.WindowMove, requestId, started);
+        }
+
+        return ToolResult<WindowMutationResult>.Success(
+            result,
+            ResultMeta.Create(requestId, started),
+            BuildPerformance(CommandNames.WindowMove, started, provider: "Win32"),
+            stateChanged: true);
+    }
+
+    private async Task<object> WindowResizeAsync(string requestId, DateTimeOffset started, JsonElement? parameters, CancellationToken ct)
+    {
+        var req = Deserialize<WindowResizeRequest>(parameters);
+        var result = await _windows.ResizeAsync(req, ct).ConfigureAwait(false);
+        if (result is null)
+        {
+            return WindowStaleFailure<WindowMutationResult>(CommandNames.WindowResize, requestId, started);
+        }
+
+        return ToolResult<WindowMutationResult>.Success(
+            result,
+            ResultMeta.Create(requestId, started),
+            BuildPerformance(CommandNames.WindowResize, started, provider: "Win32"),
+            stateChanged: true);
+    }
+
+    private ToolResult<T> WindowStaleFailure<T>(string operation, string requestId, DateTimeOffset started) =>
+        ToolResult<T>.Failure(
+            new ErrorInfo { Code = ErrorCodes.StaleTarget, Message = "Window handle is stale.", Retryable = true },
+            ResultMeta.Create(requestId, started),
+            BuildPerformance(operation, started, provider: "Win32"));
 
     private async Task<object> UiGetTreeAsync(string requestId, DateTimeOffset started, JsonElement? parameters, CancellationToken ct)
     {
@@ -664,8 +820,15 @@ public sealed class CommandDispatcher : IDisposable
                     CommandNames.EventsSubscribe,
                     CommandNames.EventsPoll,
                     CommandNames.EventsUnsubscribe,
+                    CommandNames.MonitorList,
                     CommandNames.WindowList,
+                    CommandNames.WindowGet,
                     CommandNames.WindowFocus,
+                    CommandNames.WindowMinimize,
+                    CommandNames.WindowMaximize,
+                    CommandNames.WindowRestore,
+                    CommandNames.WindowMove,
+                    CommandNames.WindowResize,
                     CommandNames.WindowWaitFor,
                     CommandNames.UiGetTree,
                     CommandNames.UiFind,
@@ -694,6 +857,9 @@ public sealed class CommandDispatcher : IDisposable
                     CommandNames.BlenderExecutePython,
                     CommandNames.BlenderExport,
                     CommandNames.BlenderSave,
+                    CommandNames.BlenderBatch,
+                    CommandNames.BlenderRender,
+                    CommandNames.BlenderImportMesh,
                     CommandNames.VsCodeOpenFile,
                     CommandNames.VsCodeOpenFolder,
                     CommandNames.VsCodeExecuteCommand,
@@ -702,6 +868,12 @@ public sealed class CommandDispatcher : IDisposable
                     CommandNames.VisualStudioBuild,
                     CommandNames.VisualStudioOpenFile,
                     CommandNames.VisualStudioOpenSolution,
+                    CommandNames.RobloxOpenPlace,
+                    CommandNames.RobloxPluginPing,
+                    CommandNames.RobloxGetHierarchy,
+                    CommandNames.RobloxGetSelection,
+                    CommandNames.RobloxSelect,
+                    CommandNames.RobloxSetProperty,
                     CommandNames.InputMouseMove,
                     CommandNames.InputMouseClick,
                     CommandNames.InputMouseDrag,
@@ -739,7 +911,8 @@ public sealed class CommandDispatcher : IDisposable
                     CommandNames.SystemTelemetryGet,
                     CommandNames.SystemTelemetrySet,
                     CommandNames.SystemSecurityReview,
-                    CommandNames.SystemIntegrity
+                    CommandNames.SystemIntegrity,
+                    CommandNames.SystemPerformance
                 }
             },
             ResultMeta.Create(requestId, started),
@@ -1186,6 +1359,7 @@ public sealed class CommandDispatcher : IDisposable
             TitleContains = parameters is null
                 ? null
                 : GetString(parameters.Value, "titleContains") ?? GetString(parameters.Value, "title"),
+            TitleRegex = parameters is null ? null : GetString(parameters.Value, "titleRegex"),
             TimeoutMs = parameters is not null && parameters.Value.TryGetProperty("timeoutMs", out var t) && t.TryGetInt32(out var ms)
                 ? ms
                 : 15000
@@ -1193,8 +1367,7 @@ public sealed class CommandDispatcher : IDisposable
         await _conditions.WaitAsync(condition, condition.TimeoutMs ?? 15000, ct).ConfigureAwait(false);
         var windows = await _windows.ListAsync(ct).ConfigureAwait(false);
         var match = windows.FirstOrDefault(w =>
-            (condition.Process is null || w.Process.Contains(condition.Process, StringComparison.OrdinalIgnoreCase)) &&
-            (condition.TitleContains is null || w.Title.Contains(condition.TitleContains, StringComparison.OrdinalIgnoreCase)));
+            ConditionProbe.WindowMatches(w, condition.Process, condition.TitleContains, null, condition.TitleRegex));
         return ToolResult<object>.Success(
             new { window = match },
             ResultMeta.Create(requestId, started),
@@ -1391,12 +1564,49 @@ public sealed class CommandDispatcher : IDisposable
                 pipe = PipeNames.Default,
                 schemaVersion = RuntimeCompat.SchemaVersion,
                 apiVersion = RuntimeCompat.ApiVersion,
+                productVersion = RuntimeCompat.ProductVersion,
+                installedVersion = _prod.State.InstalledVersion ?? RuntimeCompat.ProductVersion,
+                installRoot = ResolveInstallRoot(),
                 installId = _prod.State.InstallId,
                 lastCrash = _prod.LastCrash,
                 telemetryEnabled = _prod.State.Telemetry.Enabled,
                 uiaAvailable = _uia.Available
             },
             ResultMeta.Create(requestId, started));
+    }
+
+    private object SystemPerformance(string requestId, DateTimeOffset started)
+    {
+        var operations = _operationTimings.Snapshot()
+            .OrderBy(kv => kv.Key, StringComparer.Ordinal)
+            .ToDictionary(
+                kv => kv.Key,
+                kv => new
+                {
+                    kv.Value.Count,
+                    kv.Value.SuccessCount,
+                    kv.Value.FailureCount,
+                    p50Ms = kv.Value.P50Ms,
+                    p95Ms = kv.Value.P95Ms,
+                    lastMs = kv.Value.LastMs
+                },
+                StringComparer.Ordinal);
+
+        return ToolResult<object>.Success(
+            new
+            {
+                capturedAt = DateTimeOffset.UtcNow,
+                operations
+            },
+            ResultMeta.Create(requestId, started),
+            new PerformanceMeta
+            {
+                Operation = CommandNames.SystemPerformance,
+                DurationMs = Elapsed(started),
+                ElementsInspected = 0,
+                CacheHit = false,
+                Provider = "Agent"
+            });
     }
 
     private object SystemUpdateCheck(string requestId, DateTimeOffset started, JsonElement? parameters)
@@ -1432,7 +1642,7 @@ public sealed class CommandDispatcher : IDisposable
             var manifestPath = GetStringParam(parameters, "manifestPath")
                                ?? Path.Combine(staged, "install-manifest.json");
             var target = GetStringParam(parameters, "targetRoot")
-                         ?? _prod.DataRoot
+                         ?? ResolveInstallRoot()
                          ?? throw new ArgumentException("targetRoot is required.");
             var allowDowngrade = GetBoolParam(parameters, "allowDowngrade") ?? false;
             var available = UpdateService.LoadManifest(manifestPath);
@@ -1482,9 +1692,9 @@ public sealed class CommandDispatcher : IDisposable
     {
         try
         {
-            var root = GetStringParam(parameters, "root") ?? _prod.DataRoot;
+            var root = GetStringParam(parameters, "root") ?? ResolveInstallRoot();
             var manifestPath = GetStringParam(parameters, "manifestPath")
-                               ?? (root is null ? null : Path.Combine(root, "install-manifest.json"));
+                               ?? InstallRootResolver.ResolveManifestPath(root);
             if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(manifestPath) || !File.Exists(manifestPath))
             {
                 return ToolResult<object>.Success(
@@ -1503,13 +1713,23 @@ public sealed class CommandDispatcher : IDisposable
 
     private UpdateManifest CurrentManifest()
     {
-        var path = _prod.DataRoot is null ? null : Path.Combine(_prod.DataRoot, "install-manifest.json");
+        var installRoot = ResolveInstallRoot();
+        var path = InstallRootResolver.ResolveManifestPath(installRoot);
         if (path is not null && File.Exists(path))
         {
             return UpdateService.LoadManifest(path);
         }
 
-        return new UpdateManifest { Version = RuntimeCompat.ApiVersion, Files = Array.Empty<ManifestFile>() };
+        return new UpdateManifest { Version = RuntimeCompat.ProductVersion, Files = Array.Empty<ManifestFile>() };
+    }
+
+    private string? ResolveInstallRoot()
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return InstallRootResolver.ResolveInstallRoot(
+            Environment.GetEnvironmentVariable("DESKTOPUSEAGENT_INSTALL"),
+            localAppData,
+            AppContext.BaseDirectory);
     }
 
     private object PermissionPolicyGet(string requestId, DateTimeOffset started)
@@ -1706,16 +1926,18 @@ public sealed class CommandDispatcher : IDisposable
         var windowId = request.Params is null ? null : GetString(request.Params.Value, "windowId");
         var parameters = ToObjectDictionary(request.Params);
 
-        var result = await _adapters.ExecuteAsync(
-            adapterId,
-            new AdapterCommand
-            {
-                Action = action,
-                Params = parameters,
-                ProcessId = processId,
-                WindowId = windowId
-            },
-            ct).ConfigureAwait(false);
+        var result = string.Equals(action, CommandNames.RobloxOpenPlace, StringComparison.OrdinalIgnoreCase)
+            ? await _robloxOpenPlace.OpenPlaceAsync((IRobloxPlaceLauncher)_robloxAdapter, parameters, ct).ConfigureAwait(false)
+            : await _adapters.ExecuteAsync(
+                adapterId,
+                new AdapterCommand
+                {
+                    Action = action,
+                    Params = parameters,
+                    ProcessId = processId,
+                    WindowId = windowId
+                },
+                ct).ConfigureAwait(false);
 
         if (!result.Ok)
         {
@@ -1890,6 +2112,16 @@ public sealed class CommandDispatcher : IDisposable
     private static long Elapsed(DateTimeOffset started) =>
         (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds;
 
+    private void RecordOperationTiming(string method, DateTimeOffset started, bool success)
+    {
+        if (string.Equals(method, CommandNames.SystemPerformance, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _operationTimings.Record(method, Elapsed(started), success);
+    }
+
     private static ErrorInfo MapException(Exception ex) =>
         ex switch
         {
@@ -2020,6 +2252,8 @@ public sealed class CommandDispatcher : IDisposable
 
     public void Dispose()
     {
+        _robloxBridge.Dispose();
+        _blenderBridge.Dispose();
         _browser.Dispose();
         _uia.Dispose();
     }

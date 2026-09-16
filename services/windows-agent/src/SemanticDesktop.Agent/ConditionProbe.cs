@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using SemanticDesktop.Core.Commands;
 using SemanticDesktop.Core.Models;
 using SemanticDesktop.Execution.Conditions;
@@ -23,13 +24,51 @@ public sealed class ConditionProbe : IConditionProbe
         string? process,
         string? titleContains,
         string? windowId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? titleRegex = null)
     {
         var windows = await _windows.ListAsync(cancellationToken).ConfigureAwait(false);
-        return windows.Any(w =>
-            (windowId is null || string.Equals(w.Id, windowId, StringComparison.Ordinal)) &&
-            (process is null || w.Process.Contains(process, StringComparison.OrdinalIgnoreCase)) &&
-            (titleContains is null || w.Title.Contains(titleContains, StringComparison.OrdinalIgnoreCase)));
+        return windows.Any(w => WindowMatches(w, process, titleContains, windowId, titleRegex));
+    }
+
+    internal static bool WindowMatches(
+        WindowInfo window,
+        string? process,
+        string? titleContains,
+        string? windowId,
+        string? titleRegex)
+    {
+        if (windowId is not null && !string.Equals(window.Id, windowId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (process is not null && !window.Process.Contains(process, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (titleContains is not null && !window.Title.Contains(titleContains, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (titleRegex is not null)
+        {
+            try
+            {
+                if (!Regex.IsMatch(window.Title, titleRegex, RegexOptions.IgnoreCase))
+                {
+                    return false;
+                }
+            }
+            catch (RegexParseException)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public Task<bool> ProcessRunningAsync(string processName, CancellationToken cancellationToken)

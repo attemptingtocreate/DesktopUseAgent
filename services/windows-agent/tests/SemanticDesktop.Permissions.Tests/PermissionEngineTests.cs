@@ -8,6 +8,28 @@ namespace SemanticDesktop.Permissions.Tests;
 public class PermissionEngineTests
 {
     [Fact]
+    public void MonitorList_IsAllow_ByDefault()
+    {
+        var engine = new PermissionEngine();
+        var session = new AgentSession { SessionId = "s1", ClientId = "t" };
+        var result = engine.Evaluate(session, CommandNames.MonitorList);
+        Assert.Equal(PermissionDecisionKind.Allow, result.Decision);
+        Assert.Equal(Capabilities.WindowObserve, result.Capability);
+        Assert.Equal(RiskClass.Read, result.Risk);
+    }
+
+    [Fact]
+    public void WindowMove_IsLowRiskWrite()
+    {
+        var engine = new PermissionEngine();
+        var session = new AgentSession { SessionId = "s1", ClientId = "t" };
+        var result = engine.Evaluate(session, CommandNames.WindowMove);
+        Assert.Equal(PermissionDecisionKind.Allow, result.Decision);
+        Assert.Equal(Capabilities.WindowControl, result.Capability);
+        Assert.Equal(RiskClass.LowRiskWrite, result.Risk);
+    }
+
+    [Fact]
     public void WindowList_IsAllow_ByDefault()
     {
         var engine = new PermissionEngine();

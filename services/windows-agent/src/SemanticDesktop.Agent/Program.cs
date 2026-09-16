@@ -1,4 +1,6 @@
-﻿using SemanticDesktop.Agent;
+﻿using System.Text.Json;
+using SemanticDesktop.Agent;
+using SemanticDesktop.Core.Commands;
 using SemanticDesktop.Core.Production;
 using SemanticDesktop.IPC;
 
@@ -6,6 +8,24 @@ var pipeName = PipeNames.Resolve(
     args.FirstOrDefault(a => a.StartsWith("--pipe=", StringComparison.OrdinalIgnoreCase))?["--pipe=".Length..]);
 var dataRoot = args.FirstOrDefault(a => a.StartsWith("--data=", StringComparison.OrdinalIgnoreCase))?["--data=".Length..]
                ?? ProductionRuntime.DefaultRoot;
+
+var acquire = AgentSingleInstance.Acquire(pipeName);
+switch (acquire.Status)
+{
+    case AgentSingleInstanceAcquireStatus.AlreadyRunning:
+        if (await TryPingExistingAgentAsync(pipeName).ConfigureAwait(false))
+        {
+            return 0;
+        }
+
+        Console.Error.WriteLine(acquire.Message ?? "Another DesktopUseAgent instance is already running for this pipe.");
+        return 1;
+    case AgentSingleInstanceAcquireStatus.Failed:
+        Console.Error.WriteLine(acquire.Message ?? "Failed to acquire agent single-instance mutex.");
+        return 2;
+}
+
+using var singleInstance = acquire.Instance!;
 
 CommandDispatcher CreateDispatcher()
 {
@@ -73,3 +93,23 @@ Console.CancelKeyPress += (_, e) =>
 };
 await exit.Task;
 dispatcher.Dispose();
+return 0;
+
+static async Task<bool> TryPingExistingAgentAsync(string pipeName)
+{
+    try
+    {
+        var result = await NamedPipeClient.CallOnceAsync(
+            CommandNames.SystemPing,
+            new { },
+            CancellationToken.None,
+            pipeName,
+            connectTimeoutMs: 800,
+            responseTimeoutMs: 2000).ConfigureAwait(false);
+        return result.TryGetProperty("ok", out var ok) && ok.GetBoolean();
+    }
+    catch
+    {
+        return false;
+    }
+}

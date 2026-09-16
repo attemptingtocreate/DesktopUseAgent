@@ -15,6 +15,18 @@ public sealed class HandleRegistry
 {
     private readonly object _gate = new();
     private readonly Dictionary<string, HandleEntry> _entries = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _elementRuntimeIndex = new(StringComparer.Ordinal);
+
+    public int ElementRuntimeIndexCount
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _elementRuntimeIndex.Count;
+            }
+        }
+    }
 
     public string Allocate(HandleKind kind, object nativeKey, Dictionary<string, object?>? metadata = null, string? preferredId = null)
     {
@@ -22,6 +34,7 @@ public sealed class HandleRegistry
         {
             if (preferredId is not null && _entries.TryGetValue(preferredId, out var existing))
             {
+                UnindexElementRuntimeKey(existing);
                 existing.NativeKey = nativeKey;
                 existing.LastSeen = DateTimeOffset.UtcNow;
                 if (metadata is not null)
@@ -32,13 +45,35 @@ public sealed class HandleRegistry
                     }
                 }
 
+                IndexElementRuntimeKey(kind, preferredId, existing.Metadata);
                 return preferredId;
             }
 
             var id = preferredId ?? CreateId(kind);
-            _entries[id] = new HandleEntry(kind, nativeKey, DateTimeOffset.UtcNow, metadata);
+            var entry = new HandleEntry(kind, nativeKey, DateTimeOffset.UtcNow, metadata);
+            _entries[id] = entry;
+            IndexElementRuntimeKey(kind, id, entry.Metadata);
             return id;
         }
+    }
+
+    public bool TryGetElementByRuntimeKey(string runtimeKey, out string id)
+    {
+        lock (_gate)
+        {
+            if (_elementRuntimeIndex.TryGetValue(runtimeKey, out id!))
+            {
+                if (_entries.ContainsKey(id))
+                {
+                    return true;
+                }
+
+                _elementRuntimeIndex.Remove(runtimeKey);
+            }
+        }
+
+        id = "";
+        return false;
     }
 
     public bool TryGet(string id, out HandleEntry entry)
@@ -77,6 +112,11 @@ public sealed class HandleRegistry
     {
         lock (_gate)
         {
+            if (_entries.TryGetValue(id, out var entry))
+            {
+                UnindexElementRuntimeKey(entry);
+            }
+
             _entries.Remove(id);
         }
     }
@@ -88,6 +128,11 @@ public sealed class HandleRegistry
             var keys = _entries.Where(kv => predicate(kv.Value)).Select(kv => kv.Key).ToList();
             foreach (var key in keys)
             {
+                if (_entries.TryGetValue(key, out var entry))
+                {
+                    UnindexElementRuntimeKey(entry);
+                }
+
                 _entries.Remove(key);
             }
         }
@@ -116,6 +161,37 @@ public sealed class HandleRegistry
         Span<byte> bytes = stackalloc byte[10];
         RandomNumberGenerator.Fill(bytes);
         return prefix + Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private void IndexElementRuntimeKey(HandleKind kind, string id, Dictionary<string, object?> metadata)
+    {
+        if (kind != HandleKind.Element)
+        {
+            return;
+        }
+
+        if (metadata.TryGetValue("runtimeKey", out var key) && key is string runtimeKey && !string.IsNullOrEmpty(runtimeKey))
+        {
+            _elementRuntimeIndex[runtimeKey] = id;
+        }
+    }
+
+    private void UnindexElementRuntimeKey(HandleEntry entry)
+    {
+        if (entry.Kind != HandleKind.Element)
+        {
+            return;
+        }
+
+        if (entry.Metadata.TryGetValue("runtimeKey", out var key) && key is string runtimeKey)
+        {
+            if (_elementRuntimeIndex.TryGetValue(runtimeKey, out var indexedId) &&
+                _entries.TryGetValue(indexedId, out var indexedEntry) &&
+                ReferenceEquals(indexedEntry, entry))
+            {
+                _elementRuntimeIndex.Remove(runtimeKey);
+            }
+        }
     }
 }
 

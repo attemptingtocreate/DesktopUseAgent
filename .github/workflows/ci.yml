@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/mcp-server/package-lock.json
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install MCP dependencies
+        working-directory: apps/mcp-server
+        run: npm ci
+
+      - name: Build MCP gateway
+        working-directory: apps/mcp-server
+        run: npm run build
+
+      - name: Test MCP gateway
+        working-directory: apps/mcp-server
+        run: npm test
+
+      - name: Restore .NET solution
+        run: dotnet restore services/windows-agent/SemanticDesktop.Agent.sln
+
+      - name: Build .NET solution
+        run: dotnet build services/windows-agent/SemanticDesktop.Agent.sln -c Debug --no-restore
+
+      - name: Test .NET solution
+        run: dotnet test services/windows-agent/SemanticDesktop.Agent.sln -c Debug --no-build --verbosity normal
+
+      - name: Validate Blender plugin (Python)
+        shell: pwsh
+        run: |
+          if (Get-Command python -ErrorAction SilentlyContinue) {
+            python -m pip install --disable-pip-version-check -q pytest 2>$null
+            python -m pytest plugins/blender/tests -q
+          } else {
+            Write-Host "Python not available; skipping plugin validation."
+          }
+
+      - name: Release packaging smoke test
+        shell: pwsh
+        run: ./scripts/test-release.ps1

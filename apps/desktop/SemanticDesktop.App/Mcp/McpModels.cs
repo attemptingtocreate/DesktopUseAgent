@@ -32,5 +32,7 @@ public sealed class McpGatewayStatus
 {
     public bool AvailableAsStdioModule { get; init; }
     public string? Path { get; init; }
+    public string? EntryPath { get; init; }
+    public string? ProductVersion { get; init; }
     public string Note { get; init; } = "Native chat does not require starting the Node MCP gateway (Mode B: Cursor spawns stdio).";
 }
