@@ -91,6 +91,8 @@ public static class BlenderBridgeOperations
     public const string Save = "save";
     public const string Render = "render";
     public const string ImportMesh = "import_mesh";
+    public const string CreateMesh = "create_mesh";
+    public const string ExportForRoblox = "export_for_roblox";
     public const string ApplyTransform = "apply_transform";
     public const string Join = "join";
 
@@ -101,9 +103,11 @@ public static class BlenderBridgeOperations
         GetObjects,
         SelectObject,
         Export,
+        ExportForRoblox,
         Save,
         Render,
         ImportMesh,
+        CreateMesh,
         ApplyTransform,
         Join
     };
@@ -114,9 +118,11 @@ public static class BlenderBridgeOperations
         GetObjects,
         SelectObject,
         Export,
+        ExportForRoblox,
         Save,
         Render,
         ImportMesh,
+        CreateMesh,
         ApplyTransform,
         Join
     };

@@ -98,6 +98,13 @@ public static class RobloxBridgeOperations
     public const string Batch = "batch";
     public const string PlaytestStart = "playtest_start";
     public const string PlaytestStop = "playtest_stop";
+    public const string TerrainFillBlock = "terrain_fill_block";
+    public const string TerrainFillBall = "terrain_fill_ball";
+    public const string TerrainClear = "terrain_clear";
+    public const string InsertAsset = "insert_asset";
+    public const string ImportLocalModel = "import_local_model";
+    public const string PublishPlace = "publish_place";
+    public const string ExecuteLuau = "execute_luau";
 
     public static readonly HashSet<string> Allowlist = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -115,7 +122,14 @@ public static class RobloxBridgeOperations
         SetScriptSource,
         Batch,
         PlaytestStart,
-        PlaytestStop
+        PlaytestStop,
+        TerrainFillBlock,
+        TerrainFillBall,
+        TerrainClear,
+        InsertAsset,
+        ImportLocalModel,
+        PublishPlace,
+        ExecuteLuau
     };
 
     /// <summary>Ops allowed inside <see cref="Batch"/> (batch itself excluded).</summary>
@@ -133,6 +147,12 @@ public static class RobloxBridgeOperations
         GetScriptSource,
         SetScriptSource,
         PlaytestStart,
-        PlaytestStop
+        PlaytestStop,
+        TerrainFillBlock,
+        TerrainFillBall,
+        TerrainClear,
+        InsertAsset,
+        ImportLocalModel
+        // publish_place and execute_luau intentionally excluded from batch
     };
 }

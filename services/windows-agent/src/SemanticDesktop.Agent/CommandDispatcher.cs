@@ -288,6 +288,7 @@ public sealed class CommandDispatcher : IDisposable
                 or CommandNames.BlenderOpen or CommandNames.BlenderGetScene or CommandNames.BlenderGetObjects
                 or CommandNames.BlenderSelectObject or CommandNames.BlenderExecutePython or CommandNames.BlenderExport or CommandNames.BlenderSave
                 or CommandNames.BlenderBatch or CommandNames.BlenderRender or CommandNames.BlenderImportMesh
+                or CommandNames.BlenderCreateMesh or CommandNames.BlenderExportForRoblox
                 or CommandNames.VsCodeOpenFile or CommandNames.VsCodeOpenFolder or CommandNames.VsCodeExecuteCommand or CommandNames.VsCodeGetWorkspace
                 or CommandNames.VisualStudioGetSolution or CommandNames.VisualStudioBuild
                 or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
@@ -297,6 +298,9 @@ public sealed class CommandDispatcher : IDisposable
                 or CommandNames.RobloxSetParent or CommandNames.RobloxFindInstances
                 or CommandNames.RobloxGetScriptSource or CommandNames.RobloxSetScriptSource or CommandNames.RobloxBatch
                 or CommandNames.RobloxPlaytestStart or CommandNames.RobloxPlaytestStop
+                or CommandNames.RobloxTerrainFillBlock or CommandNames.RobloxTerrainFillBall or CommandNames.RobloxTerrainClear
+                or CommandNames.RobloxInsertAsset or CommandNames.RobloxImportLocalModel
+                or CommandNames.RobloxPublishPlace or CommandNames.RobloxExecuteLuau
                 => await AdapterExecuteAsync(request, requestId, started, cancellationToken).ConfigureAwait(false),
             CommandNames.InputMouseMove or CommandNames.InputMouseClick or CommandNames.InputMouseDrag
                 or CommandNames.InputScroll or CommandNames.InputKey or CommandNames.InputHotkey or CommandNames.InputType
@@ -864,6 +868,8 @@ public sealed class CommandDispatcher : IDisposable
                     CommandNames.BlenderBatch,
                     CommandNames.BlenderRender,
                     CommandNames.BlenderImportMesh,
+                    CommandNames.BlenderCreateMesh,
+                    CommandNames.BlenderExportForRoblox,
                     CommandNames.VsCodeOpenFile,
                     CommandNames.VsCodeOpenFolder,
                     CommandNames.VsCodeExecuteCommand,
@@ -888,6 +894,13 @@ public sealed class CommandDispatcher : IDisposable
                     CommandNames.RobloxBatch,
                     CommandNames.RobloxPlaytestStart,
                     CommandNames.RobloxPlaytestStop,
+                    CommandNames.RobloxTerrainFillBlock,
+                    CommandNames.RobloxTerrainFillBall,
+                    CommandNames.RobloxTerrainClear,
+                    CommandNames.RobloxInsertAsset,
+                    CommandNames.RobloxImportLocalModel,
+                    CommandNames.RobloxPublishPlace,
+                    CommandNames.RobloxExecuteLuau,
                     CommandNames.InputMouseMove,
                     CommandNames.InputMouseClick,
                     CommandNames.InputMouseDrag,

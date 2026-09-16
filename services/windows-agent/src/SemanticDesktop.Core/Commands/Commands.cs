@@ -176,6 +176,8 @@ public static class CommandNames
     public const string BlenderBatch = "blender.batch";
     public const string BlenderRender = "blender.render";
     public const string BlenderImportMesh = "blender.import_mesh";
+    public const string BlenderCreateMesh = "blender.create_mesh";
+    public const string BlenderExportForRoblox = "blender.export_for_roblox";
 
     public const string VsCodeOpenFile = "vscode.open_file";
     public const string VsCodeOpenFolder = "vscode.open_folder";
@@ -203,6 +205,13 @@ public static class CommandNames
     public const string RobloxBatch = "roblox.batch";
     public const string RobloxPlaytestStart = "roblox.playtest_start";
     public const string RobloxPlaytestStop = "roblox.playtest_stop";
+    public const string RobloxTerrainFillBlock = "roblox.terrain_fill_block";
+    public const string RobloxTerrainFillBall = "roblox.terrain_fill_ball";
+    public const string RobloxTerrainClear = "roblox.terrain_clear";
+    public const string RobloxInsertAsset = "roblox.insert_asset";
+    public const string RobloxImportLocalModel = "roblox.import_local_model";
+    public const string RobloxPublishPlace = "roblox.publish_place";
+    public const string RobloxExecuteLuau = "roblox.execute_luau";
 
     public const string InputMouseMove = "input.mouse_move";
     public const string InputMouseClick = "input.mouse_click";

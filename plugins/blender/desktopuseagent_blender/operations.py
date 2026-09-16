@@ -8,11 +8,23 @@ ALLOWLIST = {
     "get_objects",
     "select_object",
     "export",
+    "export_for_roblox",
     "save",
     "render",
     "import_mesh",
+    "create_mesh",
     "apply_transform",
     "join",
+}
+
+CREATE_MESH_KINDS = {
+    "cube": "primitive_cube_add",
+    "uv_sphere": "primitive_uv_sphere_add",
+    "ico_sphere": "primitive_ico_sphere_add",
+    "cylinder": "primitive_cylinder_add",
+    "cone": "primitive_cone_add",
+    "plane": "primitive_plane_add",
+    "torus": "primitive_torus_add",
 }
 
 
@@ -72,6 +84,72 @@ def execute(operation, params):
         else:
             bpy.ops.wm.obj_export(filepath=output)
         return {"exported": output, "format": fmt}
+
+    if operation == "export_for_roblox":
+        output = params.get("output") or params.get("destination")
+        overwrite = bool(params.get("overwrite", False))
+        fmt = (params.get("format") or "fbx").lower()
+        if fmt not in ("fbx", "obj", "gltf", "glb"):
+            raise RuntimeError("export_for_roblox format must be fbx, obj, gltf, or glb")
+        validation.validate_mesh_format(fmt)
+        validation.validate_output_file(
+            output,
+            overwrite=overwrite,
+            allowed_extensions=validation.EXPORT_EXTENSIONS,
+        )
+        validation.ensure_parent_directory(output)
+        # Apply transforms on selected mesh objects for clean Studio import.
+        mesh_objs = [o for o in bpy.context.scene.objects if o.type == "MESH"]
+        if mesh_objs:
+            bpy.ops.object.select_all(action="DESELECT")
+            for o in mesh_objs:
+                o.select_set(True)
+            bpy.context.view_layer.objects.active = mesh_objs[0]
+            bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+        if fmt == "fbx":
+            bpy.ops.export_scene.fbx(
+                filepath=output,
+                use_selection=False,
+                apply_scale_options="FBX_SCALE_ALL",
+                axis_forward="-Z",
+                axis_up="Y",
+            )
+        elif fmt in ("gltf", "glb"):
+            bpy.ops.export_scene.gltf(filepath=output, export_format="GLB" if fmt == "glb" else "GLTF_SEPARATE")
+        else:
+            bpy.ops.wm.obj_export(filepath=output)
+        return {"exported": output, "format": fmt, "preset": "roblox"}
+
+    if operation == "create_mesh":
+        kind = (params.get("kind") or params.get("primitive") or "cube").lower()
+        op_name = CREATE_MESH_KINDS.get(kind)
+        if op_name is None:
+            raise RuntimeError(f"unsupported mesh kind: {kind}")
+        location = params.get("location") or [0, 0, 0]
+        scale = params.get("scale") or [1, 1, 1]
+        size = params.get("size")
+        kwargs = {
+            "location": (float(location[0]), float(location[1]), float(location[2])),
+        }
+        if size is not None and kind == "cube":
+            kwargs["size"] = float(size)
+        getattr(bpy.ops.mesh, op_name)(**kwargs)
+        obj = bpy.context.view_layer.objects.active
+        if obj is None:
+            raise RuntimeError("create_mesh failed")
+        if scale:
+            obj.scale = (float(scale[0]), float(scale[1]), float(scale[2]))
+        name = params.get("name")
+        if name:
+            obj.name = name
+            if obj.data:
+                obj.data.name = name
+        return {
+            "created": obj.name,
+            "kind": kind,
+            "location": list(obj.location),
+            "scale": list(obj.scale),
+        }
 
     if operation == "save":
         dest = params.get("destination") or params.get("path")

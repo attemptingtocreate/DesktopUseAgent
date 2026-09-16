@@ -10,7 +10,8 @@ public enum RobloxPropertyKind
     Number,
     Color3,
     Vector3,
-    UDim2
+    UDim2,
+    CFrame
 }
 
 public static class RobloxPropertyContract
@@ -18,6 +19,7 @@ public static class RobloxPropertyContract
     public const string Color3Type = "Color3";
     public const string Vector3Type = "Vector3";
     public const string UDim2Type = "UDim2";
+    public const string CFrameType = "CFrame";
 
     public static readonly IReadOnlyDictionary<string, RobloxPropertyKind> AllowedProperties =
         new Dictionary<string, RobloxPropertyKind>(StringComparer.Ordinal)
@@ -47,13 +49,15 @@ public static class RobloxPropertyContract
             ["Material"] = RobloxPropertyKind.String,
             ["BrickColor"] = RobloxPropertyKind.String,
             ["Shape"] = RobloxPropertyKind.String,
+            ["MeshId"] = RobloxPropertyKind.String,
+            ["TextureID"] = RobloxPropertyKind.String,
             ["Color"] = RobloxPropertyKind.Color3,
             ["TextColor3"] = RobloxPropertyKind.Color3,
             ["BackgroundColor3"] = RobloxPropertyKind.Color3,
-            // Size/Position accept Vector3 (parts) or UDim2 (GUI) via tagged JSON.
             ["Size"] = RobloxPropertyKind.Vector3,
             ["Position"] = RobloxPropertyKind.Vector3,
-            ["Orientation"] = RobloxPropertyKind.Vector3
+            ["Orientation"] = RobloxPropertyKind.Vector3,
+            ["CFrame"] = RobloxPropertyKind.CFrame
         };
 
     public static readonly HashSet<string> BlockedProperties = new(StringComparer.Ordinal)
@@ -103,6 +107,7 @@ public static class RobloxPropertyContract
             RobloxPropertyKind.Color3 => TryNormalizeColor3(rawValue, out normalizedValue, out error),
             RobloxPropertyKind.Vector3 => TryNormalizeVector3(rawValue, out normalizedValue, out error),
             RobloxPropertyKind.UDim2 => TryNormalizeUDim2(rawValue, out normalizedValue, out error),
+            RobloxPropertyKind.CFrame => TryNormalizeCFrame(rawValue, out normalizedValue, out error),
             _ => Fail("Unsupported property kind.", out normalizedValue, out error)
         };
     }
@@ -279,6 +284,75 @@ public static class RobloxPropertyContract
             ["xOffset"] = xOffset,
             ["yScale"] = yScale,
             ["yOffset"] = yOffset
+        };
+        return true;
+    }
+
+    private static bool TryNormalizeCFrame(object? rawValue, out object? normalized, out string? error)
+    {
+        normalized = null;
+        error = null;
+        if (rawValue is not JsonElement el || el.ValueKind != JsonValueKind.Object)
+        {
+            error = "CFrame requires { type:'CFrame', position:{type:'Vector3',x,y,z}, orientation?:{type:'Vector3',x,y,z} } or components[12].";
+            return false;
+        }
+
+        if (!TryGetType(el, CFrameType))
+        {
+            error = "CFrame property requires type 'CFrame'.";
+            return false;
+        }
+
+        if (el.TryGetProperty("components", out var comps) && comps.ValueKind == JsonValueKind.Array)
+        {
+            var list = new List<double>();
+            foreach (var item in comps.EnumerateArray())
+            {
+                if (!TryReadNumber(item, out var n) || !IsFiniteNumber(n))
+                {
+                    error = "CFrame components must be 12 finite numbers.";
+                    return false;
+                }
+
+                list.Add(n);
+            }
+
+            if (list.Count != 12)
+            {
+                error = "CFrame components must contain exactly 12 numbers.";
+                return false;
+            }
+
+            normalized = new Dictionary<string, object?>
+            {
+                ["type"] = CFrameType,
+                ["components"] = list.ToArray()
+            };
+            return true;
+        }
+
+        if (!el.TryGetProperty("position", out var posEl) ||
+            !TryNormalizeVector3(posEl, out var posObj, out error))
+        {
+            error ??= "CFrame requires position Vector3 or components[12].";
+            return false;
+        }
+
+        object? orientObj = null;
+        if (el.TryGetProperty("orientation", out var orientEl))
+        {
+            if (!TryNormalizeVector3(orientEl, out orientObj, out error))
+            {
+                return false;
+            }
+        }
+
+        normalized = new Dictionary<string, object?>
+        {
+            ["type"] = CFrameType,
+            ["position"] = posObj,
+            ["orientation"] = orientObj
         };
         return true;
     }

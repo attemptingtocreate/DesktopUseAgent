@@ -119,14 +119,15 @@ public class BuiltInAdapterDiscoveryTests
     {
         var previous = Environment.GetEnvironmentVariable("BLENDER_PATH");
         BlenderExecutableCache.Invalidate();
-        Environment.SetEnvironmentVariable("BLENDER_PATH", Path.Combine(Path.GetTempPath(), "no-such-blender-" + Guid.NewGuid().ToString("N") + ".exe"));
+        var missing = Path.Combine(Path.GetTempPath(), "no-such-blender-" + Guid.NewGuid().ToString("N") + ".exe");
+        Environment.SetEnvironmentVariable("BLENDER_PATH", missing);
         try
         {
-            // Force FindBlenderExecutable to miss by pointing at nonexistent path and clearing PATH briefly is hard;
-            // instead call execute which uses FindBlenderExecutable — if real Blender exists this may succeed.
             var adapter = new BlenderAdapter();
-            if (BlenderAdapter.FindBlenderExecutable() is not null &&
-                !Environment.GetEnvironmentVariable("BLENDER_PATH")!.Contains("no-such-blender", StringComparison.Ordinal))
+            var found = BlenderAdapter.FindBlenderExecutable();
+            var envPath = Environment.GetEnvironmentVariable("BLENDER_PATH") ?? missing;
+            if (found is not null &&
+                !envPath.Contains("no-such-blender", StringComparison.Ordinal))
             {
                 // installed blender present via PATH; skip hard unavailable assertion
                 return;
@@ -144,6 +145,7 @@ public class BuiltInAdapterDiscoveryTests
                 return;
             }
 
+            Assert.False(result.Ok);
             Assert.Equal(ErrorCodes.AdapterUnavailable, result.ErrorCode);
         }
         finally

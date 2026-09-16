@@ -135,12 +135,15 @@ local PROPERTY_KIND = {
 	Material = "string",
 	BrickColor = "string",
 	Shape = "string",
+	MeshId = "string",
+	TextureID = "string",
 	Color = "Color3",
 	TextColor3 = "Color3",
 	BackgroundColor3 = "Color3",
 	Size = "Vector3OrUDim2",
 	Position = "Vector3OrUDim2",
 	Orientation = "Vector3",
+	CFrame = "CFrame",
 }
 
 local BLOCKED_PROPERTIES = {
@@ -236,6 +239,14 @@ local function serializeProperty(instance, propertyName)
 	if kind == "Vector3" and typeof(value) == "Vector3" then
 		return serializeTaggedVector3(value)
 	end
+	if kind == "CFrame" and typeof(value) == "CFrame" then
+		local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = value:GetComponents()
+		return {
+			type = "CFrame",
+			components = { x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 },
+			position = serializeTaggedVector3(value.Position),
+		}
+	end
 	if kind == "Vector3OrUDim2" then
 		if typeof(value) == "Vector3" then
 			return serializeTaggedVector3(value)
@@ -312,6 +323,29 @@ local function decodeTaggedValue(propertyName, value)
 			return UDim2.new(value.xScale, value.xOffset, value.yScale, value.yOffset)
 		end
 		return nil, "invalid_size_position"
+	end
+	if kind == "CFrame" then
+		if type(value) ~= "table" or value.type ~= "CFrame" then
+			return nil, "invalid_cframe"
+		end
+		if type(value.components) == "table" and #value.components == 12 then
+			local c = value.components
+			for i = 1, 12 do
+				if not isFiniteNumber(c[i]) then
+					return nil, "invalid_cframe"
+				end
+			end
+			return CFrame.new(c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], c[9], c[10], c[11], c[12])
+		end
+		if type(value.position) ~= "table" or value.position.type ~= "Vector3" then
+			return nil, "invalid_cframe"
+		end
+		local pos = Vector3.new(value.position.x, value.position.y, value.position.z)
+		if type(value.orientation) == "table" and value.orientation.type == "Vector3" then
+			local o = value.orientation
+			return CFrame.new(pos) * CFrame.Angles(math.rad(o.x), math.rad(o.y), math.rad(o.z))
+		end
+		return CFrame.new(pos)
 	end
 	return nil, "unsupported_kind"
 end
@@ -769,6 +803,208 @@ local function executeSingle(operation, params)
 			return { ok = false, error = tostring(err) }
 		end
 		return { ok = true, data = { running = false } }
+	end
+
+	if operation == "terrain_fill_block" then
+		local materialName = params.material or "Grass"
+		local material = Enum.Material[materialName]
+		if material == nil then
+			return { ok = false, error = "invalid_material" }
+		end
+		local cfValue, cfErr = decodeTaggedValue("CFrame", params.cframe or {
+			type = "CFrame",
+			position = params.position or { type = "Vector3", x = 0, y = 0, z = 0 },
+			orientation = params.orientation,
+		})
+		if cfValue == nil then
+			return { ok = false, error = cfErr or "invalid_cframe" }
+		end
+		local sizeValue, sizeErr = decodeTaggedValue("Size", params.size or { type = "Vector3", x = 4, y = 4, z = 4 })
+		if sizeValue == nil or typeof(sizeValue) ~= "Vector3" then
+			return { ok = false, error = sizeErr or "invalid_size" }
+		end
+		ChangeHistoryService:SetWaypoint("DesktopUseAgent terrain_fill_block")
+		local ok, err = pcall(function()
+			workspace.Terrain:FillBlock(cfValue, sizeValue, material)
+		end)
+		if not ok then
+			return { ok = false, error = tostring(err) }
+		end
+		ChangeHistoryService:SetWaypoint("DesktopUseAgent after terrain_fill_block")
+		return { ok = true, data = { material = materialName, size = serializeTaggedVector3(sizeValue) } }
+	end
+
+	if operation == "terrain_fill_ball" then
+		local materialName = params.material or "Grass"
+		local material = Enum.Material[materialName]
+		if material == nil then
+			return { ok = false, error = "invalid_material" }
+		end
+		local center = params.center or params.position or { type = "Vector3", x = 0, y = 0, z = 0 }
+		local centerValue, centerErr = decodeTaggedValue("Position", center)
+		if centerValue == nil or typeof(centerValue) ~= "Vector3" then
+			return { ok = false, error = centerErr or "invalid_center" }
+		end
+		local radius = tonumber(params.radius) or 8
+		if not isFiniteNumber(radius) or radius <= 0 or radius > 2048 then
+			return { ok = false, error = "invalid_radius" }
+		end
+		ChangeHistoryService:SetWaypoint("DesktopUseAgent terrain_fill_ball")
+		local ok, err = pcall(function()
+			workspace.Terrain:FillBall(centerValue, radius, material)
+		end)
+		if not ok then
+			return { ok = false, error = tostring(err) }
+		end
+		ChangeHistoryService:SetWaypoint("DesktopUseAgent after terrain_fill_ball")
+		return { ok = true, data = { material = materialName, radius = radius } }
+	end
+
+	if operation == "terrain_clear" then
+		ChangeHistoryService:SetWaypoint("DesktopUseAgent terrain_clear")
+		local ok, err = pcall(function()
+			workspace.Terrain:Clear()
+		end)
+		if not ok then
+			return { ok = false, error = tostring(err) }
+		end
+		ChangeHistoryService:SetWaypoint("DesktopUseAgent after terrain_clear")
+		return { ok = true, data = { cleared = true } }
+	end
+
+	if operation == "insert_asset" then
+		local assetId = tonumber(params.assetId)
+		if not assetId or assetId < 1 then
+			return { ok = false, error = "invalid_asset_id" }
+		end
+		local parent
+		if (type(params.parentId) == "string" and params.parentId ~= "")
+			or (type(params.parentPath) == "string" and params.parentPath ~= "") then
+			local resolved, parentErr = resolveParent(params)
+			if not resolved then
+				return { ok = false, error = parentErr }
+			end
+			parent = resolved
+		else
+			parent = workspace
+		end
+		if isForbiddenParent(parent) then
+			return { ok = false, error = "forbidden_parent" }
+		end
+		ChangeHistoryService:SetWaypoint("DesktopUseAgent insert_asset")
+		local InsertService = game:GetService("InsertService")
+		local ok, containerOrErr = pcall(function()
+			return InsertService:LoadAsset(assetId)
+		end)
+		if not ok then
+			return { ok = false, error = tostring(containerOrErr) }
+		end
+		local container = containerOrErr
+		local inserted = {}
+		for _, child in ipairs(container:GetChildren()) do
+			if type(params.name) == "string" and params.name ~= "" and #container:GetChildren() == 1 then
+				child.Name = params.name
+			end
+			child.Parent = parent
+			table.insert(inserted, describeInstance(child))
+		end
+		container:Destroy()
+		ChangeHistoryService:SetWaypoint("DesktopUseAgent after insert_asset")
+		return { ok = true, data = { assetId = assetId, instances = inserted } }
+	end
+
+	if operation == "import_local_model" then
+		local path = params.path or params.file
+		if type(path) ~= "string" or path == "" then
+			return { ok = false, error = "path_required" }
+		end
+		local lower = string.lower(path)
+		if not (string.sub(lower, -5) == ".rbxm" or string.sub(lower, -6) == ".rbxmx") then
+			return { ok = false, error = "path_must_be_rbxm_or_rbxmx" }
+		end
+		local parent
+		if (type(params.parentId) == "string" and params.parentId ~= "")
+			or (type(params.parentPath) == "string" and params.parentPath ~= "") then
+			local resolved, parentErr = resolveParent(params)
+			if not resolved then
+				return { ok = false, error = parentErr }
+			end
+			parent = resolved
+		else
+			parent = workspace
+		end
+		if isForbiddenParent(parent) then
+			return { ok = false, error = "forbidden_parent" }
+		end
+		ChangeHistoryService:SetWaypoint("DesktopUseAgent import_local_model")
+		local InsertService = game:GetService("InsertService")
+		local ok, modelOrErr = pcall(function()
+			return InsertService:LoadLocalAsset(path)
+		end)
+		if not ok then
+			return { ok = false, error = tostring(modelOrErr) }
+		end
+		local model = modelOrErr
+		if type(params.name) == "string" and params.name ~= "" then
+			model.Name = params.name
+		end
+		model.Parent = parent
+		ChangeHistoryService:SetWaypoint("DesktopUseAgent after import_local_model")
+		return { ok = true, data = describeInstance(model) }
+	end
+
+	if operation == "publish_place" then
+		if params.confirm ~= true then
+			return { ok = false, error = "confirm_required" }
+		end
+		-- Best-effort: Studio APIs vary by version; surface prompted/unsupported honestly.
+		local ok, resultOrErr = pcall(function()
+			if plugin.PromptPublishPlaceAsAsync then
+				plugin:PromptPublishPlaceAsAsync()
+				return { status = "prompted", method = "PromptPublishPlaceAsAsync" }
+			end
+			local PublishService = game:GetService("PublishService")
+			if PublishService and PublishService.PublishPlaceAsync then
+				PublishService:PublishPlaceAsync()
+				return { status = "published", method = "PublishPlaceAsync" }
+			end
+			return { status = "unsupported", method = nil }
+		end)
+		if not ok then
+			return { ok = false, error = tostring(resultOrErr) }
+		end
+		return { ok = true, data = resultOrErr }
+	end
+
+	if operation == "execute_luau" then
+		if params.confirm ~= true then
+			return { ok = false, error = "confirm_required" }
+		end
+		if type(params.source) ~= "string" or params.source == "" then
+			return { ok = false, error = "source_required" }
+		end
+		if utf8ByteLength(params.source) > 16384 then
+			return { ok = false, error = "source_too_large" }
+		end
+		-- Gated edge-case: loadstring in plugin context. Prefer structured ops when possible.
+		local chunk, loadErr = loadstring(params.source)
+		if not chunk then
+			return { ok = false, error = "compile_error", message = tostring(loadErr) }
+		end
+		ChangeHistoryService:SetWaypoint("DesktopUseAgent execute_luau")
+		local ok, resultOrErr = pcall(chunk)
+		if not ok then
+			return { ok = false, error = "runtime_error", message = tostring(resultOrErr) }
+		end
+		ChangeHistoryService:SetWaypoint("DesktopUseAgent after execute_luau")
+		local resultType = typeof(resultOrErr)
+		local data = { resultType = resultType }
+		if resultType == "string" or resultType == "number" or resultType == "boolean" or resultOrErr == nil then
+			data.result = resultOrErr
+		else
+			data.result = tostring(resultOrErr)
+		end
+		return { ok = true, data = data }
 	end
 
 	if operation == "batch" then

@@ -596,6 +596,36 @@ export const toolSchemas = {
       windowId: z.string().optional(),
     })
     .strict(),
+  "blender.create_mesh": z
+    .object({
+      kind: z.enum(["cube", "uv_sphere", "ico_sphere", "cylinder", "cone", "plane", "torus"]).optional(),
+      primitive: z.enum(["cube", "uv_sphere", "ico_sphere", "cylinder", "cone", "plane", "torus"]).optional(),
+      name: z.string().optional(),
+      location: z.array(z.number()).length(3).optional(),
+      scale: z.array(z.number()).length(3).optional(),
+      size: z.number().positive().optional(),
+      file: z.string().optional(),
+      blendFile: z.string().optional(),
+      mode: z.enum(["auto", "live", "background"]).optional(),
+      sessionId: z.string().optional(),
+      processId: z.string().optional(),
+      windowId: z.string().optional(),
+    })
+    .strict(),
+  "blender.export_for_roblox": z
+    .object({
+      output: z.string().min(1).optional(),
+      destination: z.string().min(1).optional(),
+      format: z.enum(["fbx", "obj", "gltf", "glb"]).optional(),
+      overwrite: z.boolean().optional(),
+      file: z.string().optional(),
+      blendFile: z.string().optional(),
+      mode: z.enum(["auto", "live", "background"]).optional(),
+      sessionId: z.string().optional(),
+      processId: z.string().optional(),
+      windowId: z.string().optional(),
+    })
+    .strict(),
   "vscode.open_file": z
     .object({
       path: z.string().optional(),
@@ -684,6 +714,20 @@ export const toolSchemas = {
             xOffset: z.number(),
             yScale: z.number(),
             yOffset: z.number(),
+          })
+          .strict(),
+        z
+          .object({
+            type: z.literal("CFrame"),
+            components: z.array(z.number()).length(12).optional(),
+            position: z
+              .object({ type: z.literal("Vector3"), x: z.number(), y: z.number(), z: z.number() })
+              .strict()
+              .optional(),
+            orientation: z
+              .object({ type: z.literal("Vector3"), x: z.number(), y: z.number(), z: z.number() })
+              .strict()
+              .optional(),
           })
           .strict(),
       ]),
@@ -779,6 +823,84 @@ export const toolSchemas = {
   "roblox.playtest_stop": z
     .object({
       sessionId: z.string().optional(),
+      timeoutSeconds: z.number().int().positive().max(180).optional(),
+    })
+    .strict(),
+  "roblox.terrain_fill_block": z
+    .object({
+      sessionId: z.string().optional(),
+      material: z.string().optional(),
+      size: z
+        .object({ type: z.literal("Vector3"), x: z.number(), y: z.number(), z: z.number() })
+        .strict()
+        .optional(),
+      position: z
+        .object({ type: z.literal("Vector3"), x: z.number(), y: z.number(), z: z.number() })
+        .strict()
+        .optional(),
+      orientation: z
+        .object({ type: z.literal("Vector3"), x: z.number(), y: z.number(), z: z.number() })
+        .strict()
+        .optional(),
+      cframe: z.record(z.string(), z.unknown()).optional(),
+      timeoutSeconds: z.number().int().positive().max(180).optional(),
+    })
+    .strict(),
+  "roblox.terrain_fill_ball": z
+    .object({
+      sessionId: z.string().optional(),
+      material: z.string().optional(),
+      radius: z.number().positive().max(2048).optional(),
+      center: z
+        .object({ type: z.literal("Vector3"), x: z.number(), y: z.number(), z: z.number() })
+        .strict()
+        .optional(),
+      position: z
+        .object({ type: z.literal("Vector3"), x: z.number(), y: z.number(), z: z.number() })
+        .strict()
+        .optional(),
+      timeoutSeconds: z.number().int().positive().max(180).optional(),
+    })
+    .strict(),
+  "roblox.terrain_clear": z
+    .object({
+      sessionId: z.string().optional(),
+      timeoutSeconds: z.number().int().positive().max(180).optional(),
+    })
+    .strict(),
+  "roblox.insert_asset": z
+    .object({
+      sessionId: z.string().optional(),
+      assetId: z.union([z.number().int().positive(), z.string().min(1)]),
+      parentId: z.string().min(1).optional(),
+      parentPath: z.string().min(1).optional(),
+      name: z.string().optional(),
+      timeoutSeconds: z.number().int().positive().max(180).optional(),
+    })
+    .strict(),
+  "roblox.import_local_model": z
+    .object({
+      sessionId: z.string().optional(),
+      path: z.string().min(1).optional(),
+      file: z.string().min(1).optional(),
+      parentId: z.string().min(1).optional(),
+      parentPath: z.string().min(1).optional(),
+      name: z.string().optional(),
+      timeoutSeconds: z.number().int().positive().max(180).optional(),
+    })
+    .strict(),
+  "roblox.publish_place": z
+    .object({
+      sessionId: z.string().optional(),
+      confirm: z.literal(true),
+      timeoutSeconds: z.number().int().positive().max(180).optional(),
+    })
+    .strict(),
+  "roblox.execute_luau": z
+    .object({
+      sessionId: z.string().optional(),
+      source: z.string().min(1).max(16384),
+      confirm: z.literal(true),
       timeoutSeconds: z.number().int().positive().max(180).optional(),
     })
     .strict(),
@@ -953,6 +1075,8 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   "blender.batch": "Run 1..32 allowlisted Blender operations in one background process.",
   "blender.render": "Render still frame to an absolute output path (background or live bridge).",
   "blender.import_mesh": "Import obj/fbx/gltf/glb/stl mesh (background or live bridge).",
+  "blender.create_mesh": "Create an allowlisted mesh primitive (cube, sphere, cylinder, …).",
+  "blender.export_for_roblox": "Export with Roblox-oriented FBX/OBJ/glTF presets (apply rotation/scale).",
   "vscode.open_file": "Open a file in VS Code via the code CLI.",
   "vscode.open_folder": "Open a folder/workspace in VS Code via the code CLI.",
   "vscode.execute_command": "Attempt a VS Code CLI --command invocation.",
@@ -977,6 +1101,13 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   "roblox.batch": "Run up to 32 allowlisted Roblox mutations/reads in one plugin round-trip.",
   "roblox.playtest_start": "Start Studio play solo via the plugin.",
   "roblox.playtest_stop": "Stop Studio play solo via the plugin.",
+  "roblox.terrain_fill_block": "Fill terrain with a material using FillBlock (CFrame + size).",
+  "roblox.terrain_fill_ball": "Fill terrain with a material using FillBall (center + radius).",
+  "roblox.terrain_clear": "Clear all workspace Terrain voxels.",
+  "roblox.insert_asset": "Insert a Toolbox/cloud asset by assetId via InsertService:LoadAsset.",
+  "roblox.import_local_model": "Import a local .rbxm/.rbxmx via InsertService:LoadLocalAsset (not FBX).",
+  "roblox.publish_place": "Best-effort publish/prompt-publish (requires confirm=true).",
+  "roblox.execute_luau": "Gated edge-case Luau exec (confirm=true, max 16KB). Prefer structured tools.",
   "input.mouse_move": "Fallback: move the mouse to physical screen coordinates (DPI/virtual-desktop aware).",
   "input.mouse_click": "Fallback: click at physical screen coordinates via SendInput.",
   "input.mouse_drag": "Fallback: drag between physical screen coordinates via SendInput.",

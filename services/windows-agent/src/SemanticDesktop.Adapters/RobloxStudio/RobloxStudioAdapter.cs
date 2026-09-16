@@ -56,7 +56,14 @@ public sealed class RobloxStudioAdapter : IApplicationAdapter, IRobloxPlaceLaunc
                 CommandNames.RobloxSetScriptSource,
                 CommandNames.RobloxBatch,
                 CommandNames.RobloxPlaytestStart,
-                CommandNames.RobloxPlaytestStop
+                CommandNames.RobloxPlaytestStop,
+                CommandNames.RobloxTerrainFillBlock,
+                CommandNames.RobloxTerrainFillBall,
+                CommandNames.RobloxTerrainClear,
+                CommandNames.RobloxInsertAsset,
+                CommandNames.RobloxImportLocalModel,
+                CommandNames.RobloxPublishPlace,
+                CommandNames.RobloxExecuteLuau
             },
             Meta = new Dictionary<string, object?>
             {
@@ -67,7 +74,8 @@ public sealed class RobloxStudioAdapter : IApplicationAdapter, IRobloxPlaceLaunc
                 ["pluginConnected"] = health.PluginConnected,
                 ["startError"] = health.StartError,
                 ["maxScriptSourceBytes"] = RobloxInstanceContract.MaxScriptSourceBytes,
-                ["maxBatchOperations"] = RobloxInstanceContract.MaxBatchOperations
+                ["maxBatchOperations"] = RobloxInstanceContract.MaxBatchOperations,
+                ["maxExecuteLuauBytes"] = RobloxPoweredOpsContract.MaxExecuteLuauBytes
             }
         });
     }
@@ -92,6 +100,13 @@ public sealed class RobloxStudioAdapter : IApplicationAdapter, IRobloxPlaceLaunc
             CommandNames.RobloxBatch => await BatchAsync(command, cancellationToken).ConfigureAwait(false),
             CommandNames.RobloxPlaytestStart => await SimpleBridgeAsync(command, RobloxBridgeOperations.PlaytestStart, cancellationToken).ConfigureAwait(false),
             CommandNames.RobloxPlaytestStop => await SimpleBridgeAsync(command, RobloxBridgeOperations.PlaytestStop, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxTerrainFillBlock => await TerrainFillBlockAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxTerrainFillBall => await TerrainFillBallAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxTerrainClear => await SimpleBridgeAsync(command, RobloxBridgeOperations.TerrainClear, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxInsertAsset => await InsertAssetAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxImportLocalModel => await ImportLocalModelAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxPublishPlace => await PublishPlaceAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxExecuteLuau => await ExecuteLuauAsync(command, cancellationToken).ConfigureAwait(false),
             _ => AdapterResult.Fail(ErrorCodes.Unsupported, $"Unknown roblox action '{command.Action}'.")
         };
     }
@@ -438,6 +453,169 @@ public sealed class RobloxStudioAdapter : IApplicationAdapter, IRobloxPlaceLaunc
             },
             120,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> TerrainFillBlockAsync(AdapterCommand command, CancellationToken cancellationToken)
+    {
+        var material = GetString(command.Params, "material") ?? "Grass";
+        if (!RobloxPoweredOpsContract.IsAllowedTerrainMaterial(material))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "material is not in the terrain allowlist.");
+        }
+
+        var bridgeParams = new Dictionary<string, object?>
+        {
+            ["material"] = material,
+            ["size"] = command.Params != null && command.Params.TryGetValue("size", out var size) ? size : null,
+            ["cframe"] = command.Params != null && command.Params.TryGetValue("cframe", out var cf) ? cf : null,
+            ["position"] = command.Params != null && command.Params.TryGetValue("position", out var pos) ? pos : null,
+            ["orientation"] = command.Params != null && command.Params.TryGetValue("orientation", out var ori) ? ori : null
+        };
+        return await BridgeOpAsync(command, RobloxBridgeOperations.TerrainFillBlock, bridgeParams, 45, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> TerrainFillBallAsync(AdapterCommand command, CancellationToken cancellationToken)
+    {
+        var material = GetString(command.Params, "material") ?? "Grass";
+        if (!RobloxPoweredOpsContract.IsAllowedTerrainMaterial(material))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "material is not in the terrain allowlist.");
+        }
+
+        var radius = GetDouble(command.Params, "radius") ?? 8;
+        if (radius is <= 0 or > 2048)
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "radius must be in (0, 2048].");
+        }
+
+        return await BridgeOpAsync(
+            command,
+            RobloxBridgeOperations.TerrainFillBall,
+            new Dictionary<string, object?>
+            {
+                ["material"] = material,
+                ["radius"] = radius,
+                ["center"] = command.Params != null && command.Params.TryGetValue("center", out var c) ? c : null,
+                ["position"] = command.Params != null && command.Params.TryGetValue("position", out var p) ? p : null
+            },
+            45,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> InsertAssetAsync(AdapterCommand command, CancellationToken cancellationToken)
+    {
+        if (!RobloxPoweredOpsContract.TryValidateAssetId(
+                command.Params != null && command.Params.TryGetValue("assetId", out var raw) ? raw : null,
+                out var assetId,
+                out var error))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, error ?? "Invalid assetId.");
+        }
+
+        return await BridgeOpAsync(
+            command,
+            RobloxBridgeOperations.InsertAsset,
+            new Dictionary<string, object?>
+            {
+                ["assetId"] = assetId,
+                ["parentId"] = GetString(command.Params, "parentId"),
+                ["parentPath"] = GetString(command.Params, "parentPath"),
+                ["name"] = GetString(command.Params, "name")
+            },
+            90,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> ImportLocalModelAsync(AdapterCommand command, CancellationToken cancellationToken)
+    {
+        var path = GetString(command.Params, "path") ?? GetString(command.Params, "file");
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "path to .rbxm/.rbxmx is required.");
+        }
+
+        path = Path.GetFullPath(path);
+        var ext = Path.GetExtension(path);
+        if (!ext.Equals(".rbxm", StringComparison.OrdinalIgnoreCase) &&
+            !ext.Equals(".rbxmx", StringComparison.OrdinalIgnoreCase))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "path must be a .rbxm or .rbxmx file.");
+        }
+
+        if (!File.Exists(path))
+        {
+            return AdapterResult.Fail(ErrorCodes.NotFound, "Model file not found.");
+        }
+
+        return await BridgeOpAsync(
+            command,
+            RobloxBridgeOperations.ImportLocalModel,
+            new Dictionary<string, object?>
+            {
+                ["path"] = path,
+                ["parentId"] = GetString(command.Params, "parentId"),
+                ["parentPath"] = GetString(command.Params, "parentPath"),
+                ["name"] = GetString(command.Params, "name")
+            },
+            90,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> PublishPlaceAsync(AdapterCommand command, CancellationToken cancellationToken)
+    {
+        var confirm = GetBool(command.Params, "confirm") ?? false;
+        if (!confirm)
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "publish_place requires confirm=true.");
+        }
+
+        return await BridgeOpAsync(
+            command,
+            RobloxBridgeOperations.PublishPlace,
+            new Dictionary<string, object?> { ["confirm"] = true },
+            120,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> ExecuteLuauAsync(AdapterCommand command, CancellationToken cancellationToken)
+    {
+        var source = GetString(command.Params, "source");
+        var confirm = GetBool(command.Params, "confirm") ?? false;
+        if (!RobloxPoweredOpsContract.TryValidateExecuteLuau(source, confirm, out var error))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, error ?? "Invalid execute_luau request.");
+        }
+
+        return await BridgeOpAsync(
+            command,
+            RobloxBridgeOperations.ExecuteLuau,
+            new Dictionary<string, object?>
+            {
+                ["source"] = source,
+                ["confirm"] = true
+            },
+            60,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private static double? GetDouble(Dictionary<string, object?>? parameters, string name)
+    {
+        if (parameters is null || !parameters.TryGetValue(name, out var value) || value is null)
+        {
+            return null;
+        }
+
+        return value switch
+        {
+            double d => d,
+            float f => f,
+            int i => i,
+            long l => l,
+            JsonElement el when el.ValueKind == JsonValueKind.Number && el.TryGetDouble(out var n) => n,
+            string s when double.TryParse(s, out var parsed) => parsed,
+            _ => null
+        };
     }
 
     private async Task<AdapterResult> SimpleBridgeAsync(

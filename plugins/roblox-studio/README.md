@@ -65,9 +65,20 @@ Build only:
 3. Click **Enable Agent Bridge** in the DesktopUseAgent toolbar.
 4. Use agent/MCP tools:
    - Observe: `roblox.plugin_ping`, `roblox.get_hierarchy`, `roblox.get_selection`, `roblox.find_instances`, `roblox.get_script_source`
-   - Mutate: `roblox.select`, `roblox.set_property`, `roblox.create_instance`, `roblox.destroy_instance`, `roblox.clone_instance`, `roblox.set_parent`, `roblox.set_script_source`, `roblox.batch`
-   - Playtest: `roblox.playtest_start`, `roblox.playtest_stop`
-   - Launch: `roblox.open_place` (launches Studio with a place file; separate from plugin bridge)
+   - Mutate: `roblox.select`, `roblox.set_property` (incl. CFrame/MeshId), `roblox.create_instance`, `roblox.destroy_instance`, `roblox.clone_instance`, `roblox.set_parent`, `roblox.set_script_source`, `roblox.batch`
+   - Terrain: `roblox.terrain_fill_block`, `roblox.terrain_fill_ball`, `roblox.terrain_clear`
+   - Assets: `roblox.insert_asset` (Toolbox assetId), `roblox.import_local_model` (.rbxm/.rbxmx only)
+   - Playtest/publish: `roblox.playtest_start`, `roblox.playtest_stop`, `roblox.publish_place` (confirm=true)
+   - Edge case: `roblox.execute_luau` (confirm=true, 16KB max) — prefer structured tools
+   - Launch: `roblox.open_place`
+
+## Blender → Roblox asset pipeline
+
+1. `blender.create_mesh` (or edit in Blender) then `blender.export_for_roblox` → FBX/OBJ/glTF with Studio-oriented axes/scale.
+2. Upload/import that mesh into Roblox via Asset Manager / 3D Importer (Studio has no silent local FBX Plugin API).
+3. Place with `roblox.insert_asset` (published assetId) **or** `roblox.import_local_model` for `.rbxm`/`.rbxmx`, then `roblox.set_property` Size/Position/CFrame.
+
+Silent absolute-path FBX→MeshPart is not supported by Studio plugins; cloud assetId or rbxm is the automated path.
 
 ## Bridge protocol (loopback only)
 

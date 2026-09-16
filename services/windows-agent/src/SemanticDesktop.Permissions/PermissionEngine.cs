@@ -186,12 +186,16 @@ public sealed class PermissionEngine
                 or CommandNames.BlenderOpen or CommandNames.BlenderSelectObject or CommandNames.BlenderExecutePython
                 or CommandNames.BlenderExport or CommandNames.BlenderSave
                 or CommandNames.BlenderBatch or CommandNames.BlenderRender or CommandNames.BlenderImportMesh
+                or CommandNames.BlenderCreateMesh or CommandNames.BlenderExportForRoblox
                 or CommandNames.VsCodeOpenFile or CommandNames.VsCodeOpenFolder or CommandNames.VsCodeExecuteCommand
                 or CommandNames.VisualStudioBuild or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
                 or CommandNames.RobloxOpenPlace or CommandNames.RobloxSelect or CommandNames.RobloxSetProperty
                 or CommandNames.RobloxCreateInstance or CommandNames.RobloxDestroyInstance or CommandNames.RobloxCloneInstance
                 or CommandNames.RobloxSetParent or CommandNames.RobloxSetScriptSource or CommandNames.RobloxBatch
                 or CommandNames.RobloxPlaytestStart or CommandNames.RobloxPlaytestStop
+                or CommandNames.RobloxTerrainFillBlock or CommandNames.RobloxTerrainFillBall or CommandNames.RobloxTerrainClear
+                or CommandNames.RobloxInsertAsset or CommandNames.RobloxImportLocalModel
+                or CommandNames.RobloxPublishPlace or CommandNames.RobloxExecuteLuau
                 => Capabilities.AdapterInteract,
             CommandNames.InputMouseMove or CommandNames.InputMouseClick or CommandNames.InputMouseDrag or CommandNames.InputScroll
                 => Capabilities.InputMouse,
@@ -242,13 +246,19 @@ public sealed class PermissionEngine
                 or CommandNames.BlenderOpen or CommandNames.BlenderSelectObject or CommandNames.BlenderExecutePython
                 or CommandNames.BlenderExport or CommandNames.BlenderSave
                 or CommandNames.BlenderBatch or CommandNames.BlenderRender or CommandNames.BlenderImportMesh
+                or CommandNames.BlenderCreateMesh or CommandNames.BlenderExportForRoblox
                 or CommandNames.VsCodeOpenFile or CommandNames.VsCodeOpenFolder or CommandNames.VsCodeExecuteCommand
                 or CommandNames.VisualStudioBuild or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
                 or CommandNames.RobloxOpenPlace or CommandNames.RobloxSelect or CommandNames.RobloxSetProperty
                 or CommandNames.RobloxCreateInstance or CommandNames.RobloxDestroyInstance or CommandNames.RobloxCloneInstance
                 or CommandNames.RobloxSetParent or CommandNames.RobloxSetScriptSource or CommandNames.RobloxBatch
                 or CommandNames.RobloxPlaytestStart or CommandNames.RobloxPlaytestStop
+                or CommandNames.RobloxTerrainFillBlock or CommandNames.RobloxTerrainFillBall or CommandNames.RobloxTerrainClear
+                or CommandNames.RobloxInsertAsset or CommandNames.RobloxImportLocalModel
+                or CommandNames.RobloxPublishPlace
                 => RiskClass.LowRiskWrite,
+            CommandNames.RobloxExecuteLuau
+                => RiskClass.HighRiskWrite,
             CommandNames.InputMouseMove or CommandNames.InputScroll => RiskClass.LowRiskWrite,
             CommandNames.InputMouseClick or CommandNames.InputMouseDrag
                 or CommandNames.InputKey or CommandNames.InputHotkey or CommandNames.InputType

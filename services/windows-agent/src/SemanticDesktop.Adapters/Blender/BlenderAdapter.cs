@@ -44,7 +44,9 @@ public sealed class BlenderAdapter : IApplicationAdapter
                 CommandNames.BlenderSave,
                 CommandNames.BlenderBatch,
                 CommandNames.BlenderRender,
-                CommandNames.BlenderImportMesh
+                CommandNames.BlenderImportMesh,
+                CommandNames.BlenderCreateMesh,
+                CommandNames.BlenderExportForRoblox
             },
             Meta = new Dictionary<string, object?>
             {
@@ -81,6 +83,8 @@ public sealed class BlenderAdapter : IApplicationAdapter
             CommandNames.BlenderBatch => await BatchAsync(command, cancellationToken).ConfigureAwait(false),
             CommandNames.BlenderRender => await RenderAsync(command, cancellationToken).ConfigureAwait(false),
             CommandNames.BlenderImportMesh => await ImportMeshAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.BlenderCreateMesh => await CreateMeshAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.BlenderExportForRoblox => await ExportForRobloxAsync(command, cancellationToken).ConfigureAwait(false),
             _ => AdapterResult.Fail(ErrorCodes.Unsupported, $"Unknown blender action '{command.Action}'.")
         };
     }
@@ -197,6 +201,134 @@ public sealed class BlenderAdapter : IApplicationAdapter
             command,
             ct,
             bridgeParams).ConfigureAwait(false);
+    }
+
+    private static readonly HashSet<string> CreateMeshKinds = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "cube", "uv_sphere", "ico_sphere", "cylinder", "cone", "plane", "torus"
+    };
+
+    private async Task<AdapterResult> CreateMeshAsync(AdapterCommand command, CancellationToken ct)
+    {
+        var kind = (GetString(command.Params, "kind") ?? GetString(command.Params, "primitive") ?? "cube").ToLowerInvariant();
+        if (!CreateMeshKinds.Contains(kind))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, $"kind must be one of: {string.Join(", ", CreateMeshKinds)}.");
+        }
+
+        var name = GetString(command.Params, "name");
+        var location = GetDoubleArray(command.Params, "location", 3) ?? new[] { 0d, 0d, 0d };
+        var scale = GetDoubleArray(command.Params, "scale", 3) ?? new[] { 1d, 1d, 1d };
+        var size = GetDouble(command.Params, "size");
+        var bridgeParams = new Dictionary<string, object?>
+        {
+            ["kind"] = kind,
+            ["name"] = name,
+            ["location"] = location,
+            ["scale"] = scale,
+            ["size"] = size
+        };
+        return await RouteAsync(
+            BlenderBridgeOperations.CreateMesh,
+            () => RunBackgroundScriptAsync(
+                BlenderScriptBuilder.BuildCreateMeshScript(kind, name, location, scale, size),
+                command,
+                ct,
+                GetOptionalBlendFile(command.Params)),
+            command,
+            ct,
+            bridgeParams).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> ExportForRobloxAsync(AdapterCommand command, CancellationToken ct)
+    {
+        var output = GetString(command.Params, "output") ?? GetString(command.Params, "destination");
+        var overwrite = GetBool(command.Params, "overwrite") ?? false;
+        var format = (GetString(command.Params, "format") ?? "fbx").ToLowerInvariant();
+        if (format is not ("fbx" or "obj" or "gltf" or "glb"))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "export_for_roblox format must be fbx, obj, gltf, or glb.");
+        }
+
+        var validation = BlenderPathValidation.ValidateExportFormat(format)
+                         ?? BlenderPathValidation.ValidateOutputFile(output!, overwrite, BlenderPathValidation.ExportExtensions);
+        if (validation is not null)
+        {
+            return validation;
+        }
+
+        BlenderPathValidation.EnsureParentDirectory(output!);
+        var bridgeParams = new Dictionary<string, object?>
+        {
+            ["output"] = output,
+            ["format"] = format,
+            ["overwrite"] = overwrite
+        };
+        return await RouteAsync(
+            BlenderBridgeOperations.ExportForRoblox,
+            () => RunBackgroundScriptAsync(
+                BlenderScriptBuilder.BuildExportForRobloxScript(output!, format),
+                command,
+                ct,
+                GetOptionalBlendFile(command.Params)),
+            command,
+            ct,
+            bridgeParams).ConfigureAwait(false);
+    }
+
+    private static double[]? GetDoubleArray(Dictionary<string, object?>? parameters, string name, int expectedLength)
+    {
+        if (parameters is null || !parameters.TryGetValue(name, out var value) || value is null)
+        {
+            return null;
+        }
+
+        if (value is JsonElement el && el.ValueKind == JsonValueKind.Array)
+        {
+            var list = new List<double>();
+            foreach (var item in el.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.Number && item.TryGetDouble(out var n))
+                {
+                    list.Add(n);
+                }
+            }
+
+            return list.Count == expectedLength ? list.ToArray() : null;
+        }
+
+        if (value is IEnumerable<object> objs)
+        {
+            var list = new List<double>();
+            foreach (var item in objs)
+            {
+                if (item is double d) list.Add(d);
+                else if (item is int i) list.Add(i);
+                else if (item is JsonElement je && je.TryGetDouble(out var n)) list.Add(n);
+            }
+
+            return list.Count == expectedLength ? list.ToArray() : null;
+        }
+
+        return null;
+    }
+
+    private static double? GetDouble(Dictionary<string, object?>? parameters, string name)
+    {
+        if (parameters is null || !parameters.TryGetValue(name, out var value) || value is null)
+        {
+            return null;
+        }
+
+        return value switch
+        {
+            double d => d,
+            float f => f,
+            int i => i,
+            long l => l,
+            JsonElement el when el.ValueKind == JsonValueKind.Number && el.TryGetDouble(out var n) => n,
+            _ => null
+        };
     }
 
     private async Task<AdapterResult> SaveAsync(AdapterCommand command, CancellationToken ct)

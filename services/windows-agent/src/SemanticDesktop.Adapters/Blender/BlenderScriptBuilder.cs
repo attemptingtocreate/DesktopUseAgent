@@ -68,6 +68,66 @@ print("SD_JSON:" + json.dumps({"ok": True, "exported": {{JsonSerializer.Serializ
 """;
     }
 
+    public static string BuildExportForRobloxScript(string output, string format) => $$"""
+import bpy, json
+output = {{JsonSerializer.Serialize(output)}}
+fmt = {{JsonSerializer.Serialize(format)}}
+mesh_objs = [o for o in bpy.context.scene.objects if o.type == "MESH"]
+if mesh_objs:
+    bpy.ops.object.select_all(action='DESELECT')
+    for o in mesh_objs:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = mesh_objs[0]
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+if fmt == "fbx":
+    bpy.ops.export_scene.fbx(filepath=output, use_selection=False, apply_scale_options='FBX_SCALE_ALL', axis_forward='-Z', axis_up='Y')
+elif fmt in ("gltf", "glb"):
+    bpy.ops.export_scene.gltf(filepath=output, export_format='GLB' if fmt == 'glb' else 'GLTF_SEPARATE')
+else:
+    bpy.ops.wm.obj_export(filepath=output)
+print("SD_JSON:" + json.dumps({"ok": True, "exported": output, "format": fmt, "preset": "roblox", "provider": "blender-python"}))
+""";
+
+    public static string BuildCreateMeshScript(string kind, string? name, double[] location, double[] scale, double? size)
+    {
+        var kindMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["cube"] = "primitive_cube_add",
+            ["uv_sphere"] = "primitive_uv_sphere_add",
+            ["ico_sphere"] = "primitive_ico_sphere_add",
+            ["cylinder"] = "primitive_cylinder_add",
+            ["cone"] = "primitive_cone_add",
+            ["plane"] = "primitive_plane_add",
+            ["torus"] = "primitive_torus_add"
+        };
+        if (!kindMap.TryGetValue(kind, out var op))
+        {
+            throw new ArgumentException($"Unsupported mesh kind '{kind}'.");
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine("import bpy, json");
+        if (kind.Equals("cube", StringComparison.OrdinalIgnoreCase) && size.HasValue)
+        {
+            sb.AppendLine($"bpy.ops.mesh.{op}(location=({location[0]}, {location[1]}, {location[2]}), size={size.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)})");
+        }
+        else
+        {
+            sb.AppendLine($"bpy.ops.mesh.{op}(location=({location[0]}, {location[1]}, {location[2]}))");
+        }
+
+        sb.AppendLine("obj = bpy.context.view_layer.objects.active");
+        sb.AppendLine($"obj.scale = ({scale[0]}, {scale[1]}, {scale[2]})");
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            sb.AppendLine($"obj.name = {JsonSerializer.Serialize(name)}");
+            sb.AppendLine("if obj.data: obj.data.name = obj.name");
+        }
+
+        sb.AppendLine("""print("SD_JSON:" + json.dumps({"ok": True, "created": obj.name, "kind": """ + JsonSerializer.Serialize(kind) + """, "provider": "blender-python"}))""");
+        return sb.ToString();
+    }
+
     public static string BuildSaveScript(string dest) => $$"""
 import bpy, json
 bpy.ops.wm.save_as_mainfile(filepath={{JsonSerializer.Serialize(dest)}})
@@ -216,9 +276,11 @@ else:
                                pad + "obj.select_set(True)\n" +
                                pad + "bpy.context.view_layer.objects.active = obj",
             "export" => BuildBatchExportStep(op, pad),
+            "export_for_roblox" => BuildBatchExportStep(op, pad),
             "save" => pad + $"bpy.ops.wm.save_as_mainfile(filepath={JsonSerializer.Serialize(GetString(op, "destination") ?? GetString(op, "path") ?? "")})",
             "render" => BuildBatchRenderStep(op, pad),
             "import_mesh" => BuildBatchImportStep(op, pad),
+            "create_mesh" => pad + $"bpy.ops.mesh.primitive_cube_add()\n" + pad + "# create_mesh simplified in batch; prefer dedicated create_mesh tool",
             "apply_transform" => pad + BuildApplyTransformScript(GetString(op, "name")).Replace("\n", "\n" + pad).TrimStart(),
             "join" => pad + "raise RuntimeError('join in batch requires names array')",
             _ => pad + $"raise RuntimeError('unsupported op: {opName}')"
