@@ -10,4 +10,11 @@ describe("tool-names", () => {
       expect(toAgentMethod(mcp)).toBe(name);
     }
   });
+
+  it("maps representative underscored and dotted pairs", () => {
+    expect(toMcpToolName("desktop.get_state")).toBe("desktop_get_state");
+    expect(toAgentMethod("desktop_get_state")).toBe("desktop.get_state");
+    expect(toMcpToolName("window.list")).toBe("window_list");
+    expect(toAgentMethod("window_list")).toBe("window.list");
+  });
 });
