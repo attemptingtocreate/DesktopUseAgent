@@ -46,7 +46,17 @@ public sealed class RobloxStudioAdapter : IApplicationAdapter, IRobloxPlaceLaunc
                 CommandNames.RobloxGetHierarchy,
                 CommandNames.RobloxGetSelection,
                 CommandNames.RobloxSelect,
-                CommandNames.RobloxSetProperty
+                CommandNames.RobloxSetProperty,
+                CommandNames.RobloxCreateInstance,
+                CommandNames.RobloxDestroyInstance,
+                CommandNames.RobloxCloneInstance,
+                CommandNames.RobloxSetParent,
+                CommandNames.RobloxFindInstances,
+                CommandNames.RobloxGetScriptSource,
+                CommandNames.RobloxSetScriptSource,
+                CommandNames.RobloxBatch,
+                CommandNames.RobloxPlaytestStart,
+                CommandNames.RobloxPlaytestStop
             },
             Meta = new Dictionary<string, object?>
             {
@@ -54,7 +64,10 @@ public sealed class RobloxStudioAdapter : IApplicationAdapter, IRobloxPlaceLaunc
                 ["provider"] = "roblox-studio-plugin",
                 ["bridgeListening"] = health.Listening,
                 ["bridgePort"] = health.Port,
-                ["pluginConnected"] = health.PluginConnected
+                ["pluginConnected"] = health.PluginConnected,
+                ["startError"] = health.StartError,
+                ["maxScriptSourceBytes"] = RobloxInstanceContract.MaxScriptSourceBytes,
+                ["maxBatchOperations"] = RobloxInstanceContract.MaxBatchOperations
             }
         });
     }
@@ -69,6 +82,16 @@ public sealed class RobloxStudioAdapter : IApplicationAdapter, IRobloxPlaceLaunc
             CommandNames.RobloxGetSelection => await GetSelectionAsync(command, cancellationToken).ConfigureAwait(false),
             CommandNames.RobloxSelect => await SelectAsync(command, cancellationToken).ConfigureAwait(false),
             CommandNames.RobloxSetProperty => await SetPropertyAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxCreateInstance => await CreateInstanceAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxDestroyInstance => await DestroyInstanceAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxCloneInstance => await CloneInstanceAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxSetParent => await SetParentAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxFindInstances => await FindInstancesAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxGetScriptSource => await GetScriptSourceAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxSetScriptSource => await SetScriptSourceAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxBatch => await BatchAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxPlaytestStart => await SimpleBridgeAsync(command, RobloxBridgeOperations.PlaytestStart, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxPlaytestStop => await SimpleBridgeAsync(command, RobloxBridgeOperations.PlaytestStop, cancellationToken).ConfigureAwait(false),
             _ => AdapterResult.Fail(ErrorCodes.Unsupported, $"Unknown roblox action '{command.Action}'.")
         };
     }
@@ -203,6 +226,326 @@ public sealed class RobloxStudioAdapter : IApplicationAdapter, IRobloxPlaceLaunc
             timeout,
             cancellationToken).ConfigureAwait(false);
         return MapBridgeResult(result);
+    }
+
+    private async Task<AdapterResult> CreateInstanceAsync(AdapterCommand command, CancellationToken cancellationToken)
+    {
+        var className = GetString(command.Params, "className");
+        if (!RobloxInstanceContract.IsCreatable(className))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "className is missing or not in the creatable allowlist.");
+        }
+
+        var parentId = GetString(command.Params, "parentId");
+        var parentPath = GetString(command.Params, "parentPath");
+        if (string.IsNullOrWhiteSpace(parentId) && string.IsNullOrWhiteSpace(parentPath))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "parentId or parentPath is required.");
+        }
+
+        return await BridgeOpAsync(
+            command,
+            RobloxBridgeOperations.CreateInstance,
+            new Dictionary<string, object?>
+            {
+                ["className"] = className,
+                ["parentId"] = parentId,
+                ["parentPath"] = parentPath,
+                ["name"] = GetString(command.Params, "name")
+            },
+            30,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> DestroyInstanceAsync(AdapterCommand command, CancellationToken cancellationToken)
+    {
+        var instanceId = GetString(command.Params, "instanceId");
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "instanceId is required.");
+        }
+
+        return await BridgeOpAsync(
+            command,
+            RobloxBridgeOperations.DestroyInstance,
+            new Dictionary<string, object?> { ["instanceId"] = instanceId },
+            20,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> CloneInstanceAsync(AdapterCommand command, CancellationToken cancellationToken)
+    {
+        var instanceId = GetString(command.Params, "instanceId");
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "instanceId is required.");
+        }
+
+        return await BridgeOpAsync(
+            command,
+            RobloxBridgeOperations.CloneInstance,
+            new Dictionary<string, object?>
+            {
+                ["instanceId"] = instanceId,
+                ["parentId"] = GetString(command.Params, "parentId"),
+                ["parentPath"] = GetString(command.Params, "parentPath"),
+                ["name"] = GetString(command.Params, "name")
+            },
+            30,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> SetParentAsync(AdapterCommand command, CancellationToken cancellationToken)
+    {
+        var instanceId = GetString(command.Params, "instanceId");
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "instanceId is required.");
+        }
+
+        var parentId = GetString(command.Params, "parentId");
+        var parentPath = GetString(command.Params, "parentPath");
+        if (string.IsNullOrWhiteSpace(parentId) && string.IsNullOrWhiteSpace(parentPath))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "parentId or parentPath is required.");
+        }
+
+        return await BridgeOpAsync(
+            command,
+            RobloxBridgeOperations.SetParent,
+            new Dictionary<string, object?>
+            {
+                ["instanceId"] = instanceId,
+                ["parentId"] = parentId,
+                ["parentPath"] = parentPath
+            },
+            20,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> FindInstancesAsync(AdapterCommand command, CancellationToken cancellationToken)
+    {
+        var maxResults = ClampInt(
+            GetInt(command.Params, "maxResults"),
+            RobloxInstanceContract.DefaultFindMaxResults,
+            1,
+            RobloxInstanceContract.MaxFindResults);
+
+        return await BridgeOpAsync(
+            command,
+            RobloxBridgeOperations.FindInstances,
+            new Dictionary<string, object?>
+            {
+                ["className"] = GetString(command.Params, "className"),
+                ["nameContains"] = GetString(command.Params, "nameContains"),
+                ["pathPrefix"] = GetString(command.Params, "pathPrefix"),
+                ["rootPath"] = GetString(command.Params, "rootPath"),
+                ["maxResults"] = maxResults
+            },
+            45,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> GetScriptSourceAsync(AdapterCommand command, CancellationToken cancellationToken)
+    {
+        var instanceId = GetString(command.Params, "instanceId");
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "instanceId is required.");
+        }
+
+        return await BridgeOpAsync(
+            command,
+            RobloxBridgeOperations.GetScriptSource,
+            new Dictionary<string, object?> { ["instanceId"] = instanceId },
+            30,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> SetScriptSourceAsync(AdapterCommand command, CancellationToken cancellationToken)
+    {
+        var instanceId = GetString(command.Params, "instanceId");
+        var source = GetString(command.Params, "source");
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "instanceId is required.");
+        }
+
+        if (source is null)
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "source is required.");
+        }
+
+        var byteCount = System.Text.Encoding.UTF8.GetByteCount(source);
+        if (byteCount > RobloxInstanceContract.MaxScriptSourceBytes)
+        {
+            return AdapterResult.Fail(
+                ErrorCodes.InvalidArgument,
+                $"source exceeds max of {RobloxInstanceContract.MaxScriptSourceBytes} bytes.");
+        }
+
+        return await BridgeOpAsync(
+            command,
+            RobloxBridgeOperations.SetScriptSource,
+            new Dictionary<string, object?>
+            {
+                ["instanceId"] = instanceId,
+                ["source"] = source
+            },
+            60,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> BatchAsync(AdapterCommand command, CancellationToken cancellationToken)
+    {
+        if (command.Params is null ||
+            !command.Params.TryGetValue("operations", out var opsObj) ||
+            opsObj is null)
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "operations array is required.");
+        }
+
+        var operations = NormalizeBatchOperations(opsObj);
+        if (operations is null)
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "operations must be an array of {operation, params}.");
+        }
+
+        if (operations.Count > RobloxInstanceContract.MaxBatchOperations)
+        {
+            return AdapterResult.Fail(
+                ErrorCodes.InvalidArgument,
+                $"operations exceeds max of {RobloxInstanceContract.MaxBatchOperations}.");
+        }
+
+        foreach (var op in operations)
+        {
+            if (!op.TryGetValue("operation", out var nameObj) || nameObj is not string name ||
+                !RobloxBridgeOperations.BatchAllowlist.Contains(name))
+            {
+                return AdapterResult.Fail(ErrorCodes.InvalidArgument, "batch contains an unsupported or missing operation.");
+            }
+        }
+
+        var stopOnError = GetBool(command.Params, "stopOnError") ?? false;
+        return await BridgeOpAsync(
+            command,
+            RobloxBridgeOperations.Batch,
+            new Dictionary<string, object?>
+            {
+                ["operations"] = operations,
+                ["stopOnError"] = stopOnError
+            },
+            120,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> SimpleBridgeAsync(
+        AdapterCommand command,
+        string operation,
+        CancellationToken cancellationToken) =>
+        await BridgeOpAsync(command, operation, new Dictionary<string, object?>(), 30, cancellationToken)
+            .ConfigureAwait(false);
+
+    private async Task<AdapterResult> BridgeOpAsync(
+        AdapterCommand command,
+        string operation,
+        Dictionary<string, object?> bridgeParams,
+        int defaultTimeoutSeconds,
+        CancellationToken cancellationToken)
+    {
+        var sessionId = GetString(command.Params, "sessionId");
+        var timeout = TimeSpan.FromSeconds(ClampInt(GetInt(command.Params, "timeoutSeconds"), defaultTimeoutSeconds, 1, 180));
+        var result = await _bridge.ExecuteCommandAsync(
+            operation,
+            bridgeParams,
+            sessionId,
+            timeout,
+            cancellationToken).ConfigureAwait(false);
+        return MapBridgeResult(result);
+    }
+
+    private static List<Dictionary<string, object?>>? NormalizeBatchOperations(object opsObj)
+    {
+        if (opsObj is JsonElement el && el.ValueKind == JsonValueKind.Array)
+        {
+            var list = new List<Dictionary<string, object?>>();
+            foreach (var item in el.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object)
+                {
+                    return null;
+                }
+
+                var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+                if (item.TryGetProperty("operation", out var op) && op.ValueKind == JsonValueKind.String)
+                {
+                    dict["operation"] = op.GetString();
+                }
+                else if (item.TryGetProperty("op", out var op2) && op2.ValueKind == JsonValueKind.String)
+                {
+                    dict["operation"] = op2.GetString();
+                }
+                else
+                {
+                    return null;
+                }
+
+                if (item.TryGetProperty("params", out var p) && p.ValueKind == JsonValueKind.Object)
+                {
+                    var inner = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var prop in p.EnumerateObject())
+                    {
+                        inner[prop.Name] = prop.Value.Clone();
+                    }
+
+                    dict["params"] = inner;
+                }
+                else
+                {
+                    dict["params"] = new Dictionary<string, object?>();
+                }
+
+                list.Add(dict);
+            }
+
+            return list;
+        }
+
+        if (opsObj is IEnumerable<object> enumerable)
+        {
+            var list = new List<Dictionary<string, object?>>();
+            foreach (var item in enumerable)
+            {
+                if (item is Dictionary<string, object?> dict)
+                {
+                    list.Add(dict);
+                }
+                else
+                {
+                    return null;
+                }
+            }
+
+            return list;
+        }
+
+        return null;
+    }
+
+    private static bool? GetBool(Dictionary<string, object?>? parameters, string name)
+    {
+        if (parameters is null || !parameters.TryGetValue(name, out var value) || value is null)
+        {
+            return null;
+        }
+
+        return value switch
+        {
+            bool b => b,
+            JsonElement el when el.ValueKind is JsonValueKind.True or JsonValueKind.False => el.GetBoolean(),
+            _ => null
+        };
     }
 
     public Task<AdapterResult> LaunchPlaceAsync(Dictionary<string, object?>? parameters, CancellationToken cancellationToken)

@@ -677,8 +677,109 @@ export const toolSchemas = {
             z: z.number(),
           })
           .strict(),
+        z
+          .object({
+            type: z.literal("UDim2"),
+            xScale: z.number(),
+            xOffset: z.number(),
+            yScale: z.number(),
+            yOffset: z.number(),
+          })
+          .strict(),
       ]),
       timeoutSeconds: z.number().int().positive().max(120).optional(),
+    })
+    .strict(),
+  "roblox.create_instance": z
+    .object({
+      sessionId: z.string().optional(),
+      className: z.string().min(1),
+      parentId: z.string().min(1).optional(),
+      parentPath: z.string().min(1).optional(),
+      name: z.string().optional(),
+      timeoutSeconds: z.number().int().positive().max(180).optional(),
+    })
+    .strict(),
+  "roblox.destroy_instance": z
+    .object({
+      sessionId: z.string().optional(),
+      instanceId: z.string().min(1),
+      timeoutSeconds: z.number().int().positive().max(180).optional(),
+    })
+    .strict(),
+  "roblox.clone_instance": z
+    .object({
+      sessionId: z.string().optional(),
+      instanceId: z.string().min(1),
+      parentId: z.string().min(1).optional(),
+      parentPath: z.string().min(1).optional(),
+      name: z.string().optional(),
+      timeoutSeconds: z.number().int().positive().max(180).optional(),
+    })
+    .strict(),
+  "roblox.set_parent": z
+    .object({
+      sessionId: z.string().optional(),
+      instanceId: z.string().min(1),
+      parentId: z.string().min(1).optional(),
+      parentPath: z.string().min(1).optional(),
+      timeoutSeconds: z.number().int().positive().max(180).optional(),
+    })
+    .strict(),
+  "roblox.find_instances": z
+    .object({
+      sessionId: z.string().optional(),
+      className: z.string().optional(),
+      nameContains: z.string().optional(),
+      pathPrefix: z.string().optional(),
+      rootPath: z.string().optional(),
+      maxResults: z.number().int().positive().max(200).optional(),
+      timeoutSeconds: z.number().int().positive().max(180).optional(),
+    })
+    .strict(),
+  "roblox.get_script_source": z
+    .object({
+      sessionId: z.string().optional(),
+      instanceId: z.string().min(1),
+      timeoutSeconds: z.number().int().positive().max(180).optional(),
+    })
+    .strict(),
+  "roblox.set_script_source": z
+    .object({
+      sessionId: z.string().optional(),
+      instanceId: z.string().min(1),
+      source: z.string().max(262144),
+      timeoutSeconds: z.number().int().positive().max(180).optional(),
+    })
+    .strict(),
+  "roblox.batch": z
+    .object({
+      sessionId: z.string().optional(),
+      operations: z
+        .array(
+          z
+            .object({
+              operation: z.string().min(1),
+              params: z.record(z.string(), z.unknown()).optional(),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(32),
+      stopOnError: z.boolean().optional(),
+      timeoutSeconds: z.number().int().positive().max(180).optional(),
+    })
+    .strict(),
+  "roblox.playtest_start": z
+    .object({
+      sessionId: z.string().optional(),
+      timeoutSeconds: z.number().int().positive().max(180).optional(),
+    })
+    .strict(),
+  "roblox.playtest_stop": z
+    .object({
+      sessionId: z.string().optional(),
+      timeoutSeconds: z.number().int().positive().max(180).optional(),
     })
     .strict(),
   "input.mouse_move": z
@@ -866,6 +967,16 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   "roblox.get_selection": "Get selected instances from the connected Roblox Studio plugin.",
   "roblox.select": "Select instances by session-scoped IDs via the Roblox Studio plugin.",
   "roblox.set_property": "Set an allowlisted property on a Roblox instance via the Studio plugin.",
+  "roblox.create_instance": "Create an allowlisted Roblox instance under a parent (by id or path).",
+  "roblox.destroy_instance": "Destroy a non-service Roblox instance by session-scoped id.",
+  "roblox.clone_instance": "Clone a Roblox instance, optionally under a new parent.",
+  "roblox.set_parent": "Reparent a Roblox instance (dedicated Parent mutation).",
+  "roblox.find_instances": "Find instances by class/name/path without dumping the full hierarchy.",
+  "roblox.get_script_source": "Read Source from Script/LocalScript/ModuleScript.",
+  "roblox.set_script_source": "Write Source on Script/LocalScript/ModuleScript (max 256KB; no free Luau exec).",
+  "roblox.batch": "Run up to 32 allowlisted Roblox mutations/reads in one plugin round-trip.",
+  "roblox.playtest_start": "Start Studio play solo via the plugin.",
+  "roblox.playtest_stop": "Stop Studio play solo via the plugin.",
   "input.mouse_move": "Fallback: move the mouse to physical screen coordinates (DPI/virtual-desktop aware).",
   "input.mouse_click": "Fallback: click at physical screen coordinates via SendInput.",
   "input.mouse_drag": "Fallback: drag between physical screen coordinates via SendInput.",

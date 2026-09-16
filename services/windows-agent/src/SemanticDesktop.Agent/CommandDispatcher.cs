@@ -293,6 +293,10 @@ public sealed class CommandDispatcher : IDisposable
                 or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
                 or CommandNames.RobloxOpenPlace or CommandNames.RobloxPluginPing or CommandNames.RobloxGetHierarchy
                 or CommandNames.RobloxGetSelection or CommandNames.RobloxSelect or CommandNames.RobloxSetProperty
+                or CommandNames.RobloxCreateInstance or CommandNames.RobloxDestroyInstance or CommandNames.RobloxCloneInstance
+                or CommandNames.RobloxSetParent or CommandNames.RobloxFindInstances
+                or CommandNames.RobloxGetScriptSource or CommandNames.RobloxSetScriptSource or CommandNames.RobloxBatch
+                or CommandNames.RobloxPlaytestStart or CommandNames.RobloxPlaytestStop
                 => await AdapterExecuteAsync(request, requestId, started, cancellationToken).ConfigureAwait(false),
             CommandNames.InputMouseMove or CommandNames.InputMouseClick or CommandNames.InputMouseDrag
                 or CommandNames.InputScroll or CommandNames.InputKey or CommandNames.InputHotkey or CommandNames.InputType
@@ -874,6 +878,16 @@ public sealed class CommandDispatcher : IDisposable
                     CommandNames.RobloxGetSelection,
                     CommandNames.RobloxSelect,
                     CommandNames.RobloxSetProperty,
+                    CommandNames.RobloxCreateInstance,
+                    CommandNames.RobloxDestroyInstance,
+                    CommandNames.RobloxCloneInstance,
+                    CommandNames.RobloxSetParent,
+                    CommandNames.RobloxFindInstances,
+                    CommandNames.RobloxGetScriptSource,
+                    CommandNames.RobloxSetScriptSource,
+                    CommandNames.RobloxBatch,
+                    CommandNames.RobloxPlaytestStart,
+                    CommandNames.RobloxPlaytestStop,
                     CommandNames.InputMouseMove,
                     CommandNames.InputMouseClick,
                     CommandNames.InputMouseDrag,

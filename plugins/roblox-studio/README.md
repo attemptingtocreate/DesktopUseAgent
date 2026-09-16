@@ -1,6 +1,8 @@
-# DesktopUseAgent Roblox Studio Plugin (Phase 2 MVP)
+# DesktopUseAgent Roblox Studio Plugin
 
 This plugin connects Roblox Studio to the local DesktopUseAgent Windows bridge. The agent hosts a loopback-only HTTP listener; the plugin polls for commands and POSTs results. **Studio plugins cannot host HTTP servers.**
+
+Semantic graph + script tools are preferred over vision scraping of Studio chrome. **Arbitrary Luau `loadstring` is not exposed** — scripts are edited via `get_script_source` / `set_script_source` only.
 
 ## Requirements
 
@@ -62,12 +64,10 @@ Build only:
 2. Open Roblox Studio.
 3. Click **Enable Agent Bridge** in the DesktopUseAgent toolbar.
 4. Use agent/MCP tools:
-   - `roblox.plugin_ping`
-   - `roblox.get_hierarchy`
-   - `roblox.get_selection`
-   - `roblox.select`
-   - `roblox.set_property`
-   - `roblox.open_place` (launches Studio with a place file; separate from plugin bridge)
+   - Observe: `roblox.plugin_ping`, `roblox.get_hierarchy`, `roblox.get_selection`, `roblox.find_instances`, `roblox.get_script_source`
+   - Mutate: `roblox.select`, `roblox.set_property`, `roblox.create_instance`, `roblox.destroy_instance`, `roblox.clone_instance`, `roblox.set_parent`, `roblox.set_script_source`, `roblox.batch`
+   - Playtest: `roblox.playtest_start`, `roblox.playtest_stop`
+   - Launch: `roblox.open_place` (launches Studio with a place file; separate from plugin bridge)
 
 ## Bridge protocol (loopback only)
 

@@ -180,6 +180,7 @@ public sealed class PermissionEngine
                 or CommandNames.BlenderGetScene or CommandNames.BlenderGetObjects
                 or CommandNames.VsCodeGetWorkspace or CommandNames.VisualStudioGetSolution
                 or CommandNames.RobloxPluginPing or CommandNames.RobloxGetHierarchy or CommandNames.RobloxGetSelection
+                or CommandNames.RobloxFindInstances or CommandNames.RobloxGetScriptSource
                 => Capabilities.AdapterObserve,
             CommandNames.AdapterExecute
                 or CommandNames.BlenderOpen or CommandNames.BlenderSelectObject or CommandNames.BlenderExecutePython
@@ -188,6 +189,9 @@ public sealed class PermissionEngine
                 or CommandNames.VsCodeOpenFile or CommandNames.VsCodeOpenFolder or CommandNames.VsCodeExecuteCommand
                 or CommandNames.VisualStudioBuild or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
                 or CommandNames.RobloxOpenPlace or CommandNames.RobloxSelect or CommandNames.RobloxSetProperty
+                or CommandNames.RobloxCreateInstance or CommandNames.RobloxDestroyInstance or CommandNames.RobloxCloneInstance
+                or CommandNames.RobloxSetParent or CommandNames.RobloxSetScriptSource or CommandNames.RobloxBatch
+                or CommandNames.RobloxPlaytestStart or CommandNames.RobloxPlaytestStop
                 => Capabilities.AdapterInteract,
             CommandNames.InputMouseMove or CommandNames.InputMouseClick or CommandNames.InputMouseDrag or CommandNames.InputScroll
                 => Capabilities.InputMouse,
@@ -224,6 +228,7 @@ public sealed class PermissionEngine
                 or CommandNames.BlenderGetScene or CommandNames.BlenderGetObjects
                 or CommandNames.VsCodeGetWorkspace or CommandNames.VisualStudioGetSolution
                 or CommandNames.RobloxPluginPing or CommandNames.RobloxGetHierarchy or CommandNames.RobloxGetSelection
+                or CommandNames.RobloxFindInstances or CommandNames.RobloxGetScriptSource
                 => RiskClass.Read,
             CommandNames.WindowFocus or CommandNames.WindowMinimize or CommandNames.WindowMaximize
                 or CommandNames.WindowRestore or CommandNames.WindowMove or CommandNames.WindowResize
@@ -240,6 +245,9 @@ public sealed class PermissionEngine
                 or CommandNames.VsCodeOpenFile or CommandNames.VsCodeOpenFolder or CommandNames.VsCodeExecuteCommand
                 or CommandNames.VisualStudioBuild or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
                 or CommandNames.RobloxOpenPlace or CommandNames.RobloxSelect or CommandNames.RobloxSetProperty
+                or CommandNames.RobloxCreateInstance or CommandNames.RobloxDestroyInstance or CommandNames.RobloxCloneInstance
+                or CommandNames.RobloxSetParent or CommandNames.RobloxSetScriptSource or CommandNames.RobloxBatch
+                or CommandNames.RobloxPlaytestStart or CommandNames.RobloxPlaytestStop
                 => RiskClass.LowRiskWrite,
             CommandNames.InputMouseMove or CommandNames.InputScroll => RiskClass.LowRiskWrite,
             CommandNames.InputMouseClick or CommandNames.InputMouseDrag

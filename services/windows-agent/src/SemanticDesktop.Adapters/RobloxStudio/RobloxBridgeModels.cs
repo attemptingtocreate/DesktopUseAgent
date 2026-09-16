@@ -88,6 +88,16 @@ public static class RobloxBridgeOperations
     public const string Select = "select";
     public const string SetProperty = "set_property";
     public const string Ping = "ping";
+    public const string CreateInstance = "create_instance";
+    public const string DestroyInstance = "destroy_instance";
+    public const string CloneInstance = "clone_instance";
+    public const string SetParent = "set_parent";
+    public const string FindInstances = "find_instances";
+    public const string GetScriptSource = "get_script_source";
+    public const string SetScriptSource = "set_script_source";
+    public const string Batch = "batch";
+    public const string PlaytestStart = "playtest_start";
+    public const string PlaytestStop = "playtest_stop";
 
     public static readonly HashSet<string> Allowlist = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -95,6 +105,34 @@ public static class RobloxBridgeOperations
         GetSelection,
         Select,
         SetProperty,
-        Ping
+        Ping,
+        CreateInstance,
+        DestroyInstance,
+        CloneInstance,
+        SetParent,
+        FindInstances,
+        GetScriptSource,
+        SetScriptSource,
+        Batch,
+        PlaytestStart,
+        PlaytestStop
+    };
+
+    /// <summary>Ops allowed inside <see cref="Batch"/> (batch itself excluded).</summary>
+    public static readonly HashSet<string> BatchAllowlist = new(StringComparer.OrdinalIgnoreCase)
+    {
+        GetHierarchy,
+        GetSelection,
+        Select,
+        SetProperty,
+        CreateInstance,
+        DestroyInstance,
+        CloneInstance,
+        SetParent,
+        FindInstances,
+        GetScriptSource,
+        SetScriptSource,
+        PlaytestStart,
+        PlaytestStop
     };
 }

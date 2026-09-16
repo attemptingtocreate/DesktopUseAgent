@@ -193,6 +193,16 @@ public static class CommandNames
     public const string RobloxGetSelection = "roblox.get_selection";
     public const string RobloxSelect = "roblox.select";
     public const string RobloxSetProperty = "roblox.set_property";
+    public const string RobloxCreateInstance = "roblox.create_instance";
+    public const string RobloxDestroyInstance = "roblox.destroy_instance";
+    public const string RobloxCloneInstance = "roblox.clone_instance";
+    public const string RobloxSetParent = "roblox.set_parent";
+    public const string RobloxFindInstances = "roblox.find_instances";
+    public const string RobloxGetScriptSource = "roblox.get_script_source";
+    public const string RobloxSetScriptSource = "roblox.set_script_source";
+    public const string RobloxBatch = "roblox.batch";
+    public const string RobloxPlaytestStart = "roblox.playtest_start";
+    public const string RobloxPlaytestStop = "roblox.playtest_stop";
 
     public const string InputMouseMove = "input.mouse_move";
     public const string InputMouseClick = "input.mouse_click";

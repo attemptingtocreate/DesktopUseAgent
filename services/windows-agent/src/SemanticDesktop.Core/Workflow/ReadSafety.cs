@@ -23,6 +23,7 @@ public static class ReadSafety
                 or CommandNames.BlenderGetScene or CommandNames.BlenderGetObjects
                 or CommandNames.VsCodeGetWorkspace or CommandNames.VisualStudioGetSolution
                 or CommandNames.RobloxPluginPing or CommandNames.RobloxGetHierarchy or CommandNames.RobloxGetSelection
+                or CommandNames.RobloxFindInstances or CommandNames.RobloxGetScriptSource
                 or CommandNames.SystemPing or CommandNames.SystemStatus or CommandNames.SystemPerformance or CommandNames.AuditList
                 or CommandNames.SessionGet or CommandNames.SessionList
                 or CommandNames.EventsPoll

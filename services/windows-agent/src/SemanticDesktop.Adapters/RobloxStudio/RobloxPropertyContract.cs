@@ -9,13 +9,15 @@ public enum RobloxPropertyKind
     Bool,
     Number,
     Color3,
-    Vector3
+    Vector3,
+    UDim2
 }
 
 public static class RobloxPropertyContract
 {
     public const string Color3Type = "Color3";
     public const string Vector3Type = "Vector3";
+    public const string UDim2Type = "UDim2";
 
     public static readonly IReadOnlyDictionary<string, RobloxPropertyKind> AllowedProperties =
         new Dictionary<string, RobloxPropertyKind>(StringComparer.Ordinal)
@@ -26,20 +28,29 @@ public static class RobloxPropertyContract
             ["CanQuery"] = RobloxPropertyKind.Bool,
             ["CanTouch"] = RobloxPropertyKind.Bool,
             ["Locked"] = RobloxPropertyKind.Bool,
+            ["CastShadow"] = RobloxPropertyKind.Bool,
+            ["Massless"] = RobloxPropertyKind.Bool,
             ["Transparency"] = RobloxPropertyKind.Number,
             ["Reflectance"] = RobloxPropertyKind.Number,
             ["Visible"] = RobloxPropertyKind.Bool,
             ["Enabled"] = RobloxPropertyKind.Bool,
             ["Value"] = RobloxPropertyKind.Number,
             ["Text"] = RobloxPropertyKind.String,
+            ["PlaceholderText"] = RobloxPropertyKind.String,
+            ["Font"] = RobloxPropertyKind.String,
+            ["TextSize"] = RobloxPropertyKind.Number,
             ["BackgroundTransparency"] = RobloxPropertyKind.Number,
             ["BorderSizePixel"] = RobloxPropertyKind.Number,
             ["ZIndex"] = RobloxPropertyKind.Number,
             ["LayoutOrder"] = RobloxPropertyKind.Number,
             ["Rotation"] = RobloxPropertyKind.Number,
+            ["Material"] = RobloxPropertyKind.String,
+            ["BrickColor"] = RobloxPropertyKind.String,
+            ["Shape"] = RobloxPropertyKind.String,
             ["Color"] = RobloxPropertyKind.Color3,
             ["TextColor3"] = RobloxPropertyKind.Color3,
             ["BackgroundColor3"] = RobloxPropertyKind.Color3,
+            // Size/Position accept Vector3 (parts) or UDim2 (GUI) via tagged JSON.
             ["Size"] = RobloxPropertyKind.Vector3,
             ["Position"] = RobloxPropertyKind.Vector3,
             ["Orientation"] = RobloxPropertyKind.Vector3
@@ -69,8 +80,19 @@ public static class RobloxPropertyContract
 
         if (!AllowedProperties.TryGetValue(property, out var kind))
         {
-            error = $"Property '{property}' is not in the MVP allowlist.";
+            error = $"Property '{property}' is not in the allowlist.";
             return false;
+        }
+
+        // Size/Position may be Vector3 or UDim2 tagged objects.
+        if ((property is "Size" or "Position") && rawValue is JsonElement sizeEl && sizeEl.ValueKind == JsonValueKind.Object)
+        {
+            if (sizeEl.TryGetProperty("type", out var typeEl) &&
+                typeEl.ValueKind == JsonValueKind.String &&
+                string.Equals(typeEl.GetString(), UDim2Type, StringComparison.Ordinal))
+            {
+                return TryNormalizeUDim2(rawValue, out normalizedValue, out error);
+            }
         }
 
         return kind switch
@@ -80,6 +102,7 @@ public static class RobloxPropertyContract
             RobloxPropertyKind.Number => TryNormalizeNumber(rawValue, property, out normalizedValue, out error),
             RobloxPropertyKind.Color3 => TryNormalizeColor3(rawValue, out normalizedValue, out error),
             RobloxPropertyKind.Vector3 => TryNormalizeVector3(rawValue, out normalizedValue, out error),
+            RobloxPropertyKind.UDim2 => TryNormalizeUDim2(rawValue, out normalizedValue, out error),
             _ => Fail("Unsupported property kind.", out normalizedValue, out error)
         };
     }
@@ -220,6 +243,42 @@ public static class RobloxPropertyContract
             ["x"] = x,
             ["y"] = y,
             ["z"] = z
+        };
+        return true;
+    }
+
+    private static bool TryNormalizeUDim2(object? rawValue, out object? normalized, out string? error)
+    {
+        normalized = null;
+        error = null;
+        if (rawValue is not JsonElement el || el.ValueKind != JsonValueKind.Object)
+        {
+            error = "UDim2 property requires { type: 'UDim2', xScale, xOffset, yScale, yOffset }.";
+            return false;
+        }
+
+        if (!TryGetType(el, UDim2Type))
+        {
+            error = "UDim2 property requires type 'UDim2'.";
+            return false;
+        }
+
+        if (!TryReadComponent(el, "xScale", out var xScale, allowNegative: true) ||
+            !TryReadComponent(el, "xOffset", out var xOffset, allowNegative: true) ||
+            !TryReadComponent(el, "yScale", out var yScale, allowNegative: true) ||
+            !TryReadComponent(el, "yOffset", out var yOffset, allowNegative: true))
+        {
+            error = "UDim2 requires finite xScale/xOffset/yScale/yOffset.";
+            return false;
+        }
+
+        normalized = new Dictionary<string, object?>
+        {
+            ["type"] = UDim2Type,
+            ["xScale"] = xScale,
+            ["xOffset"] = xOffset,
+            ["yScale"] = yScale,
+            ["yOffset"] = yOffset
         };
         return true;
     }

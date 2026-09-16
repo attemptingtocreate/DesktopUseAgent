@@ -329,8 +329,11 @@ public class RobloxAdapterTests
     {
         Assert.Contains("Color", RobloxPropertyContract.AllowedProperties.Keys);
         Assert.Contains("Size", RobloxPropertyContract.AllowedProperties.Keys);
-        Assert.DoesNotContain("Material", RobloxPropertyContract.AllowedProperties.Keys);
+        Assert.Contains("Material", RobloxPropertyContract.AllowedProperties.Keys);
         Assert.DoesNotContain("CFrame", RobloxPropertyContract.AllowedProperties.Keys);
+        Assert.Contains(RobloxBridgeOperations.CreateInstance, RobloxBridgeOperations.Allowlist);
+        Assert.Contains(RobloxBridgeOperations.SetScriptSource, RobloxBridgeOperations.Allowlist);
+        Assert.DoesNotContain(RobloxBridgeOperations.Batch, RobloxBridgeOperations.BatchAllowlist);
     }
 
     [Fact]
