@@ -36,6 +36,7 @@ public static class ReadSafety
                 or CommandNames.DesktopDescribe or CommandNames.DesktopGetGraph
                 or CommandNames.FilesystemList or CommandNames.FilesystemExists
                 or CommandNames.FilesystemStat or CommandNames.FilesystemInspect
+                or CommandNames.BrowserList
                 => true,
             _ => false
         };

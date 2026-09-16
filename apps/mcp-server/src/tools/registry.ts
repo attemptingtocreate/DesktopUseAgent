@@ -2,11 +2,16 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { AgentClient } from "../agent-client.js";
 import { getToolMetadata } from "./metadata.js";
 import { TOOL_DESCRIPTIONS, TOOL_NAMES, toolSchemas, type ToolName } from "./schemas.js";
+import { toMcpToolName } from "./tool-names.js";
 
 export { TOOL_NAMES, type ToolName };
 
 export function listRegisteredToolNames(): readonly ToolName[] {
   return TOOL_NAMES;
+}
+
+export function listRegisteredMcpToolNames(): readonly string[] {
+  return TOOL_NAMES.map(toMcpToolName);
 }
 
 function asParams(value: unknown): Record<string, unknown> {
@@ -20,8 +25,9 @@ export function registerTools(server: McpServer, client: AgentClient): void {
   for (const name of TOOL_NAMES) {
     const schema = toolSchemas[name];
     const { title, annotations } = getToolMetadata(name);
+    const mcpName = toMcpToolName(name);
     server.registerTool(
-      name,
+      mcpName,
       {
         title,
         description: TOOL_DESCRIPTIONS[name],

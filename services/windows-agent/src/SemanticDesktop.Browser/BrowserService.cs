@@ -745,6 +745,11 @@ function __sdDescribe(el, id) {
             }
         }
 
+        if (await TryConnectToLiveCdpAsync(executablePath, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
         var exe = executablePath ?? BrowserDiscovery.FindPreferredExecutable()
                    ?? throw new InvalidOperationException("No Chromium browser found on disk.");
         var port = BrowserDiscovery.FindFreeTcpPort();
@@ -866,6 +871,110 @@ function __sdDescribe(el, id) {
             var tab = await AttachTabAsync(targetId, cancellationToken).ConfigureAwait(false);
             _activeTabId = tab.Id;
         }
+    }
+
+    private async Task<bool> TryConnectToLiveCdpAsync(
+        string? executablePath,
+        CancellationToken cancellationToken)
+    {
+        var livePort = BrowserDiscovery.TryFindLiveDebugPort();
+        if (livePort is not int port)
+        {
+            return false;
+        }
+
+        string? wsUrl;
+        using (var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) })
+        {
+            try
+            {
+                var json = await http.GetStringAsync($"http://127.0.0.1:{port}/json/version", cancellationToken)
+                    .ConfigureAwait(false);
+                using var doc = JsonDocument.Parse(json);
+                wsUrl = doc.RootElement.GetProperty("webSocketDebuggerUrl").GetString();
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(wsUrl))
+        {
+            return false;
+        }
+
+        var exe = executablePath ?? BrowserDiscovery.FindPreferredExecutable() ?? "chrome";
+        var cdp = new CdpConnection();
+        cdp.EventReceived += OnCdpEvent;
+        try
+        {
+            await cdp.ConnectAsync(wsUrl, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            await cdp.DisposeAsync().ConfigureAwait(false);
+            return false;
+        }
+
+        lock (_gate)
+        {
+            _chromeProcess = null;
+            _userDataDir = null;
+            _debugPort = port;
+            _cdp = cdp;
+            _browserId = _handles.Allocate(
+                HandleKind.Browser,
+                exe,
+                new Dictionary<string, object?>
+                {
+                    ["name"] = Path.GetFileNameWithoutExtension(exe),
+                    ["path"] = exe,
+                    ["debugPort"] = port,
+                    ["running"] = true,
+                    ["managed"] = false
+                });
+        }
+
+        try
+        {
+            await cdp.SendAsync("Target.setDiscoverTargets", new { discover = true }, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+            // Optional.
+        }
+
+        await EnableDownloadTrackingAsync(cancellationToken).ConfigureAwait(false);
+
+        var targets = await cdp.SendAsync("Target.getTargets", cancellationToken: cancellationToken).ConfigureAwait(false);
+        if (targets.ValueKind == JsonValueKind.Object && targets.TryGetProperty("targetInfos", out var infos))
+        {
+            foreach (var info in infos.EnumerateArray())
+            {
+                if (info.TryGetProperty("type", out var type) && type.GetString() == "page")
+                {
+                    var targetId = info.GetProperty("targetId").GetString();
+                    if (targetId is not null)
+                    {
+                        var tab = await AttachTabAsync(targetId, cancellationToken).ConfigureAwait(false);
+                        _activeTabId ??= tab.Id;
+                    }
+                }
+            }
+        }
+
+        if (_activeTabId is null)
+        {
+            var created = await cdp.SendAsync("Target.createTarget", new { url = "about:blank" }, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+            var targetId = created.GetProperty("targetId").GetString()!;
+            var tab = await AttachTabAsync(targetId, cancellationToken).ConfigureAwait(false);
+            _activeTabId = tab.Id;
+        }
+
+        return true;
     }
 
     private async Task EnableDownloadTrackingAsync(CancellationToken cancellationToken)

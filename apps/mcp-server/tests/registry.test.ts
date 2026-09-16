@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { AgentClient } from "../src/agent-client.js";
 import { createServer } from "../src/server.js";
 import { TOOL_METADATA } from "../src/tools/metadata.js";
-import { listRegisteredToolNames, TOOL_NAMES } from "../src/tools/registry.js";
+import { listRegisteredMcpToolNames, listRegisteredToolNames, TOOL_NAMES } from "../src/tools/registry.js";
+import { toMcpToolName } from "../src/tools/tool-names.js";
 
 const EXPECTED_TOOLS = [
   "desktop.get_state",
@@ -86,6 +87,8 @@ const EXPECTED_TOOLS = [
   "vision.capture_region",
 ] as const;
 
+const EXPECTED_MCP_TOOLS = EXPECTED_TOOLS.map(toMcpToolName);
+
 describe("tool registry", () => {
   it("lists the expected Phase 11 tool names", () => {
     expect(listRegisteredToolNames()).toEqual([...EXPECTED_TOOLS]);
@@ -94,7 +97,14 @@ describe("tool registry", () => {
     expect(TOOL_NAMES).toContain("filesystem.inspect");
   });
 
-  it("registers exactly those tools on McpServer", () => {
+  it("lists underscored MCP tool names", () => {
+    expect(listRegisteredMcpToolNames()).toEqual([...EXPECTED_MCP_TOOLS]);
+    for (const name of EXPECTED_MCP_TOOLS) {
+      expect(name).not.toContain(".");
+    }
+  });
+
+  it("registers exactly those tools on McpServer with underscored MCP keys", () => {
     const client = new AgentClient({ pipeName: "unused" });
     client.send = vi.fn(async () => ({ ok: true, data: {} }));
 
@@ -107,7 +117,27 @@ describe("tool registry", () => {
       )._registeredTools,
     ).sort();
 
-    expect(registered).toEqual([...EXPECTED_TOOLS].sort());
+    expect(registered).toEqual([...EXPECTED_MCP_TOOLS].sort());
+  });
+
+  it("forwards dotted agent methods to AgentClient", async () => {
+    const client = new AgentClient({ pipeName: "unused" });
+    client.send = vi.fn(async () => ({ ok: true, data: {} }));
+
+    const { server } = createServer({ client });
+    const registeredTools = (
+      server as unknown as {
+        _registeredTools: Record<
+          string,
+          {
+            handler?: (args: unknown) => Promise<unknown>;
+          }
+        >;
+      }
+    )._registeredTools;
+
+    await registeredTools["browser_open_tab"]!.handler!({});
+    expect(client.send).toHaveBeenCalledWith("browser.open_tab", expect.any(Object));
   });
 
   it("defines metadata for exactly the registered tools", () => {
@@ -166,7 +196,8 @@ describe("tool registry", () => {
     )._registeredTools;
 
     for (const name of TOOL_NAMES) {
-      const tool = registeredTools[name];
+      const mcpName = toMcpToolName(name);
+      const tool = registeredTools[mcpName];
       const meta = TOOL_METADATA[name];
       expect(tool.title).toBe(meta.title);
       expect(tool.annotations).toEqual(meta.annotations);

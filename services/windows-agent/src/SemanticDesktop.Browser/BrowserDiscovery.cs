@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
@@ -17,6 +18,12 @@ public sealed class DiscoveredBrowser
 
 public static class BrowserDiscovery
 {
+    private static readonly object DiscoverCacheLock = new();
+    private static IReadOnlyList<DiscoveredBrowser>? _discoverCache;
+    private static DateTimeOffset _discoverCacheExpiry = DateTimeOffset.MinValue;
+    private static readonly TimeSpan DiscoverCacheTtl = TimeSpan.FromSeconds(4);
+    private static readonly int[] DebugPortRange = Enumerable.Range(9222, 20).ToArray();
+
     private static readonly string[] ChromeCandidates =
     {
         @"C:\Program Files\Google\Chrome\Application\chrome.exe",
@@ -38,6 +45,32 @@ public static class BrowserDiscovery
     };
 
     public static IReadOnlyList<DiscoveredBrowser> Discover()
+    {
+        lock (DiscoverCacheLock)
+        {
+            if (_discoverCache is not null && DateTimeOffset.UtcNow < _discoverCacheExpiry)
+            {
+                return _discoverCache;
+            }
+        }
+
+        var results = DiscoverCore();
+        lock (DiscoverCacheLock)
+        {
+            _discoverCache = results;
+            _discoverCacheExpiry = DateTimeOffset.UtcNow.Add(DiscoverCacheTtl);
+        }
+
+        return results;
+    }
+
+    public static int? TryFindLiveDebugPort()
+    {
+        var livePorts = FindLiveDebugPortsParallel();
+        return livePorts.Count > 0 ? livePorts[0] : null;
+    }
+
+    private static IReadOnlyList<DiscoveredBrowser> DiscoverCore()
     {
         var ports = DetectDebugPorts();
         var results = new List<DiscoveredBrowser>();
@@ -90,7 +123,13 @@ public static class BrowserDiscovery
     }
 
     public static bool IsInstalled(string name) =>
-        Discover().Any(d => d.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        name.ToLowerInvariant() switch
+        {
+            "chrome" => ChromeCandidates.Any(File.Exists),
+            "edge" => EdgeCandidates.Any(File.Exists),
+            "brave" => BraveCandidates.Any(File.Exists),
+            _ => false
+        };
 
     public static int FindFreeTcpPort()
     {
@@ -232,15 +271,26 @@ public static class BrowserDiscovery
         return IsDebugPortLive(port);
     }
 
-    private static List<(int Port, string? Executable)> DetectDebugPorts()
+    private static IReadOnlyList<int> FindLiveDebugPortsParallel()
     {
-        var found = new List<(int Port, string? Executable)>();
-        foreach (var port in Enumerable.Range(9222, 20))
+        var livePorts = new ConcurrentBag<int>();
+        Parallel.ForEach(DebugPortRange, port =>
         {
             if (IsDebugPortLive(port))
             {
-                found.Add((port, null));
+                livePorts.Add(port);
             }
+        });
+
+        return livePorts.OrderBy(static p => p).ToArray();
+    }
+
+    private static List<(int Port, string? Executable)> DetectDebugPorts()
+    {
+        var found = new List<(int Port, string? Executable)>();
+        foreach (var port in FindLiveDebugPortsParallel())
+        {
+            found.Add((port, null));
         }
 
         try

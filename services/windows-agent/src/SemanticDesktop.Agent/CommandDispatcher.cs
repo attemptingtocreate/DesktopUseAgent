@@ -748,7 +748,7 @@ public sealed class CommandDispatcher : IDisposable
                 Operation = CommandNames.DesktopGetCapabilities,
                 DurationMs = Elapsed(started),
                 ElementsInspected = 0,
-                CacheHit = true,
+                CacheHit = false,
                 Provider = "Agent"
             });
     }
