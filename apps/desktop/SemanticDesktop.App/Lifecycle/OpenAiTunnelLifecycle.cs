@@ -547,6 +547,11 @@ public sealed class OpenAiTunnelLifecycle
         var profileDirectory = _paths.ResolveProfileDirectory(settings);
         var profilePath = _paths.ResolveProfileFilePath(settings);
 
+        // A previous Control Center session may have left tunnel-client running
+        // (Leave agent running). Doctor binds the health port and fails if that
+        // orphan still holds 127.0.0.1:8080 — clear it before we start.
+        StopOrphanedTunnelClientProcesses(tunnelClientPath);
+
         if (!File.Exists(tunnelClientPath))
         {
             SetStatus(new OpenAiTunnelStatus
@@ -716,6 +721,17 @@ public sealed class OpenAiTunnelLifecycle
         _process = null;
         if (process is null)
         {
+            // Still clear orphans so disable/restart works after Leave-agent-running.
+            try
+            {
+                var path = _paths.ResolveTunnelClientPath(_settings.Get().OpenAiTunnel);
+                StopOrphanedTunnelClientProcesses(path);
+            }
+            catch
+            {
+                // best effort
+            }
+
             return;
         }
 
@@ -744,6 +760,75 @@ public sealed class OpenAiTunnelLifecycle
         finally
         {
             process.Dispose();
+        }
+
+        try
+        {
+            var path = _paths.ResolveTunnelClientPath(_settings.Get().OpenAiTunnel);
+            StopOrphanedTunnelClientProcesses(path);
+        }
+        catch
+        {
+            // best effort
+        }
+    }
+
+    /// <summary>
+    /// Kills tunnel-client.exe instances that match our installed binary path but
+    /// are not tracked by this lifecycle (orphaned after Control Center restart).
+    /// </summary>
+    internal static void StopOrphanedTunnelClientProcesses(string tunnelClientPath)
+    {
+        if (string.IsNullOrWhiteSpace(tunnelClientPath))
+        {
+            return;
+        }
+
+        string fullPath;
+        try
+        {
+            fullPath = Path.GetFullPath(tunnelClientPath);
+        }
+        catch
+        {
+            return;
+        }
+
+        foreach (var candidate in Process.GetProcessesByName("tunnel-client"))
+        {
+            try
+            {
+                string? modulePath = null;
+                try
+                {
+                    modulePath = candidate.MainModule?.FileName;
+                }
+                catch
+                {
+                    // access denied / exited
+                }
+
+                if (modulePath is null)
+                {
+                    continue;
+                }
+
+                if (!string.Equals(Path.GetFullPath(modulePath), fullPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                candidate.Kill(entireProcessTree: true);
+                candidate.WaitForExit(3000);
+            }
+            catch
+            {
+                // best effort
+            }
+            finally
+            {
+                try { candidate.Dispose(); } catch { /* ignore */ }
+            }
         }
     }
 
