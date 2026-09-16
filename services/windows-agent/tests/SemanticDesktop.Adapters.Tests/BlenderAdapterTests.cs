@@ -303,7 +303,7 @@ public class BlenderAdapterTests
     }
 
     [Fact]
-    public async Task ExecutePython_Never_Uses_Live_Bridge()
+    public async Task ExecutePython_Background_Does_Not_Use_Live_Bridge()
     {
         var runner = new FakeBlenderProcessRunner();
         var bridge = new InMemoryBlenderBridge();
@@ -313,11 +313,16 @@ public class BlenderAdapterTests
         Environment.SetEnvironmentVariable("BLENDER_PATH", CreateFakeBlenderExe());
         try
         {
-            Assert.DoesNotContain("execute_python", BlenderBridgeOperations.Allowlist);
+            Assert.Contains("execute_python", BlenderBridgeOperations.Allowlist);
+            Assert.DoesNotContain("execute_python", BlenderBridgeOperations.BatchAllowlist);
             var result = await adapter.ExecuteAsync(new AdapterCommand
             {
                 Action = CommandNames.BlenderExecutePython,
-                Params = new Dictionary<string, object?> { ["code"] = "print(1)" }
+                Params = new Dictionary<string, object?>
+                {
+                    ["code"] = "print(1)",
+                    ["mode"] = "background"
+                }
             }, CancellationToken.None);
 
             Assert.True(result.Ok);
@@ -328,6 +333,98 @@ public class BlenderAdapterTests
             Environment.SetEnvironmentVariable("BLENDER_PATH", null);
             BlenderExecutableCache.Invalidate();
         }
+    }
+
+    [Fact]
+    public async Task ExecutePython_Live_Requires_Confirm()
+    {
+        var runner = new FakeBlenderProcessRunner();
+        var bridge = new InMemoryBlenderBridge();
+        bridge.RegisterSession("s1");
+        var called = false;
+        bridge.Handler = (_, _) =>
+        {
+            called = true;
+            return BlenderCommandResult.Success(new { ok = true });
+        };
+        var adapter = new BlenderAdapter(bridge, runner);
+        var result = await adapter.ExecuteAsync(new AdapterCommand
+        {
+            Action = CommandNames.BlenderExecutePython,
+            ProcessId = "p1",
+            Params = new Dictionary<string, object?>
+            {
+                ["code"] = "result = 1",
+                ["mode"] = "live"
+            }
+        }, CancellationToken.None);
+
+        Assert.False(result.Ok);
+        Assert.Equal(ErrorCodes.InvalidArgument, result.ErrorCode);
+        Assert.False(called);
+    }
+
+    [Fact]
+    public async Task ExecutePython_Live_With_Confirm_Uses_Bridge()
+    {
+        var runner = new FakeBlenderProcessRunner();
+        var bridge = new InMemoryBlenderBridge();
+        bridge.RegisterSession("s1");
+        string? op = null;
+        bridge.Handler = (operation, _) =>
+        {
+            op = operation;
+            return BlenderCommandResult.Success(new { executed = true });
+        };
+        var adapter = new BlenderAdapter(bridge, runner);
+        var result = await adapter.ExecuteAsync(new AdapterCommand
+        {
+            Action = CommandNames.BlenderExecutePython,
+            ProcessId = "p1",
+            Params = new Dictionary<string, object?>
+            {
+                ["source"] = "result = 1",
+                ["confirm"] = true,
+                ["mode"] = "live"
+            }
+        }, CancellationToken.None);
+
+        Assert.True(result.Ok);
+        Assert.Equal(BlenderBridgeOperations.ExecutePython, op);
+        Assert.Empty(runner.Invocations);
+    }
+
+    [Fact]
+    public void MeshOps_Allowlist_Includes_Powered_Ops()
+    {
+        Assert.Contains(BlenderBridgeOperations.MeshExtrude, BlenderBridgeOperations.Allowlist);
+        Assert.Contains(BlenderBridgeOperations.ModifierBoolean, BlenderBridgeOperations.Allowlist);
+        Assert.Contains(BlenderBridgeOperations.MaterialSet, BlenderBridgeOperations.Allowlist);
+        Assert.Contains(BlenderBridgeOperations.UvUnwrap, BlenderBridgeOperations.Allowlist);
+        Assert.Contains(BlenderBridgeOperations.SelectGeometry, BlenderBridgeOperations.Allowlist);
+        Assert.Contains(BlenderBridgeOperations.ExecutePython, BlenderBridgeOperations.Allowlist);
+        Assert.DoesNotContain(BlenderBridgeOperations.ExecutePython, BlenderBridgeOperations.BatchAllowlist);
+    }
+
+    [Fact]
+    public void MeshOpsContract_Validates_ExecutePython()
+    {
+        Assert.False(BlenderMeshOpsContract.TryValidateExecutePython("x", false, out _));
+        Assert.False(BlenderMeshOpsContract.TryValidateExecutePython("", true, out _));
+        Assert.True(BlenderMeshOpsContract.TryValidateExecutePython("result = 1", true, out _));
+    }
+
+    [Fact]
+    public async Task MeshExtrude_Requires_Object_Name()
+    {
+        var adapter = new BlenderAdapter(null, new FakeBlenderProcessRunner());
+        var result = await adapter.ExecuteAsync(new AdapterCommand
+        {
+            Action = CommandNames.BlenderMeshExtrude,
+            Params = new Dictionary<string, object?> { ["value"] = 0.5 }
+        }, CancellationToken.None);
+        Assert.False(result.Ok);
+        Assert.Equal(ErrorCodes.InvalidArgument, result.ErrorCode);
     }
 
     [Fact]

@@ -237,6 +237,266 @@ else:
 """;
     }
 
+    public static string BuildMeshExtrudeScript(string objectName, string mode, double value, IReadOnlyList<int>? indices)
+    {
+        var indicesJson = JsonSerializer.Serialize(indices ?? Array.Empty<int>());
+        return $$"""
+import bpy, bmesh, json
+obj = bpy.data.objects.get({{JsonSerializer.Serialize(objectName)}})
+if obj is None or obj.type != 'MESH':
+    print("SD_JSON:" + json.dumps({"ok": False, "error": "mesh object not found"}))
+else:
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode='EDIT')
+    bm = bmesh.from_edit_mesh(obj.data)
+    bm.faces.ensure_lookup_table(); bm.edges.ensure_lookup_table(); bm.verts.ensure_lookup_table()
+    bpy.ops.mesh.select_all(action='DESELECT')
+    mode = {{JsonSerializer.Serialize(mode)}}
+    indices = {{indicesJson}}
+    if indices:
+        bpy.ops.mesh.select_mode(type=mode)
+        for i in indices:
+            if mode == 'VERT' and 0 <= i < len(bm.verts): bm.verts[i].select = True
+            elif mode == 'EDGE' and 0 <= i < len(bm.edges): bm.edges[i].select = True
+            elif mode == 'FACE' and 0 <= i < len(bm.faces): bm.faces[i].select = True
+        bmesh.update_edit_mesh(obj.data)
+    bpy.ops.mesh.extrude_region_move(TRANSFORM_OT_translate={"value": (0.0, 0.0, {{value.ToString(System.Globalization.CultureInfo.InvariantCulture)}})})
+    bpy.ops.object.mode_set(mode='OBJECT')
+    print("SD_JSON:" + json.dumps({"ok": True, "object": obj.name, "extruded": {{value.ToString(System.Globalization.CultureInfo.InvariantCulture)}}, "provider": "blender-python"}))
+""";
+    }
+
+    public static string BuildMeshInsetScript(string objectName, double thickness, double depth, IReadOnlyList<int>? indices)
+    {
+        var indicesJson = JsonSerializer.Serialize(indices ?? Array.Empty<int>());
+        return $$"""
+import bpy, bmesh, json
+obj = bpy.data.objects.get({{JsonSerializer.Serialize(objectName)}})
+if obj is None or obj.type != 'MESH':
+    print("SD_JSON:" + json.dumps({"ok": False, "error": "mesh object not found"}))
+else:
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode='EDIT')
+    bm = bmesh.from_edit_mesh(obj.data)
+    bm.faces.ensure_lookup_table()
+    indices = {{indicesJson}}
+    if indices:
+        bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.ops.mesh.select_mode(type='FACE')
+        for i in indices:
+            if 0 <= i < len(bm.faces): bm.faces[i].select = True
+        bmesh.update_edit_mesh(obj.data)
+    bpy.ops.mesh.inset(thickness={{thickness.ToString(System.Globalization.CultureInfo.InvariantCulture)}}, depth={{depth.ToString(System.Globalization.CultureInfo.InvariantCulture)}})
+    bpy.ops.object.mode_set(mode='OBJECT')
+    print("SD_JSON:" + json.dumps({"ok": True, "object": obj.name, "thickness": {{thickness.ToString(System.Globalization.CultureInfo.InvariantCulture)}}, "depth": {{depth.ToString(System.Globalization.CultureInfo.InvariantCulture)}}, "provider": "blender-python"}))
+""";
+    }
+
+    public static string BuildMeshBevelScript(string objectName, string mode, double offset, int segments, IReadOnlyList<int>? indices)
+    {
+        var indicesJson = JsonSerializer.Serialize(indices ?? Array.Empty<int>());
+        return $$"""
+import bpy, bmesh, json
+obj = bpy.data.objects.get({{JsonSerializer.Serialize(objectName)}})
+if obj is None or obj.type != 'MESH':
+    print("SD_JSON:" + json.dumps({"ok": False, "error": "mesh object not found"}))
+else:
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode='EDIT')
+    bm = bmesh.from_edit_mesh(obj.data)
+    bm.faces.ensure_lookup_table(); bm.edges.ensure_lookup_table(); bm.verts.ensure_lookup_table()
+    mode = {{JsonSerializer.Serialize(mode)}}
+    indices = {{indicesJson}}
+    if indices:
+        bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.ops.mesh.select_mode(type=mode)
+        for i in indices:
+            if mode == 'VERT' and 0 <= i < len(bm.verts): bm.verts[i].select = True
+            elif mode == 'EDGE' and 0 <= i < len(bm.edges): bm.edges[i].select = True
+            elif mode == 'FACE' and 0 <= i < len(bm.faces): bm.faces[i].select = True
+        bmesh.update_edit_mesh(obj.data)
+    bpy.ops.mesh.bevel(offset={{offset.ToString(System.Globalization.CultureInfo.InvariantCulture)}}, segments={{segments}}, affect='EDGES')
+    bpy.ops.object.mode_set(mode='OBJECT')
+    print("SD_JSON:" + json.dumps({"ok": True, "object": obj.name, "offset": {{offset.ToString(System.Globalization.CultureInfo.InvariantCulture)}}, "segments": {{segments}}, "provider": "blender-python"}))
+""";
+    }
+
+    public static string BuildMeshLoopCutScript(string objectName, int cuts, int? edgeIndex)
+    {
+        var edgeBlock = edgeIndex.HasValue
+            ? $"""
+    bm = bmesh.from_edit_mesh(obj.data)
+    bm.edges.ensure_lookup_table()
+    bpy.ops.mesh.select_all(action='DESELECT')
+    bpy.ops.mesh.select_mode(type='EDGE')
+    if 0 <= {edgeIndex.Value} < len(bm.edges):
+        bm.edges[{edgeIndex.Value}].select = True
+    bmesh.update_edit_mesh(obj.data)
+"""
+            : "";
+        return $$"""
+import bpy, bmesh, json
+obj = bpy.data.objects.get({{JsonSerializer.Serialize(objectName)}})
+if obj is None or obj.type != 'MESH':
+    print("SD_JSON:" + json.dumps({"ok": False, "error": "mesh object not found"}))
+else:
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode='EDIT')
+{{edgeBlock}}
+    try:
+        bpy.ops.mesh.loopcut_and_slide(MESH_OT_loopcut={"number_cuts": {{cuts}}})
+    except Exception:
+        bpy.ops.mesh.subdivide(number_cuts={{cuts}})
+    bpy.ops.object.mode_set(mode='OBJECT')
+    print("SD_JSON:" + json.dumps({"ok": True, "object": obj.name, "cuts": {{cuts}}, "provider": "blender-python"}))
+""";
+    }
+
+    public static string BuildModifierBooleanScript(string objectName, string target, string operation, bool apply) => $$"""
+import bpy, json
+obj = bpy.data.objects.get({{JsonSerializer.Serialize(objectName)}})
+target = bpy.data.objects.get({{JsonSerializer.Serialize(target)}})
+if obj is None or obj.type != 'MESH' or target is None or target.type != 'MESH':
+    print("SD_JSON:" + json.dumps({"ok": False, "error": "object and target mesh required"}))
+else:
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    mod = obj.modifiers.new(name='Boolean', type='BOOLEAN')
+    mod.operation = {{JsonSerializer.Serialize(operation)}}
+    mod.object = target
+    applied = {{(apply ? "True" : "False")}}
+    if applied:
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+    print("SD_JSON:" + json.dumps({"ok": True, "object": obj.name, "operation": mod.operation, "target": target.name, "applied": applied, "provider": "blender-python"}))
+""";
+
+    public static string BuildModifierMirrorScript(string objectName, string axis, bool apply) => $$"""
+import bpy, json
+obj = bpy.data.objects.get({{JsonSerializer.Serialize(objectName)}})
+if obj is None or obj.type != 'MESH':
+    print("SD_JSON:" + json.dumps({"ok": False, "error": "mesh object not found"}))
+else:
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    mod = obj.modifiers.new(name='Mirror', type='MIRROR')
+    axis = {{JsonSerializer.Serialize(axis)}}
+    mod.use_axis[0] = axis == 'X'
+    mod.use_axis[1] = axis == 'Y'
+    mod.use_axis[2] = axis == 'Z'
+    applied = {{(apply ? "True" : "False")}}
+    if applied:
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+    print("SD_JSON:" + json.dumps({"ok": True, "object": obj.name, "axis": axis, "applied": applied, "provider": "blender-python"}))
+""";
+
+    public static string BuildModifierArrayScript(string objectName, int count, double[] relative, bool apply) => $$"""
+import bpy, json
+obj = bpy.data.objects.get({{JsonSerializer.Serialize(objectName)}})
+if obj is None or obj.type != 'MESH':
+    print("SD_JSON:" + json.dumps({"ok": False, "error": "mesh object not found"}))
+else:
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    mod = obj.modifiers.new(name='Array', type='ARRAY')
+    mod.count = {{count}}
+    mod.relative_offset_displace = ({{relative[0].ToString(System.Globalization.CultureInfo.InvariantCulture)}}, {{relative[1].ToString(System.Globalization.CultureInfo.InvariantCulture)}}, {{relative[2].ToString(System.Globalization.CultureInfo.InvariantCulture)}})
+    applied = {{(apply ? "True" : "False")}}
+    if applied:
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+    print("SD_JSON:" + json.dumps({"ok": True, "object": obj.name, "count": {{count}}, "applied": applied, "provider": "blender-python"}))
+""";
+
+    public static string BuildMaterialSetScript(string objectName, string? material, double[] color, double? roughness, double? metallic)
+    {
+        var matExpr = string.IsNullOrWhiteSpace(material)
+            ? "f\"{obj.name}_Mat\""
+            : JsonSerializer.Serialize(material);
+        var roughLine = roughness.HasValue
+            ? $"bsdf.inputs['Roughness'].default_value = {roughness.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}"
+            : "pass";
+        var metalLine = metallic.HasValue
+            ? $"bsdf.inputs['Metallic'].default_value = {metallic.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}"
+            : "pass";
+        return $$"""
+import bpy, json
+obj = bpy.data.objects.get({{JsonSerializer.Serialize(objectName)}})
+if obj is None or obj.type != 'MESH':
+    print("SD_JSON:" + json.dumps({"ok": False, "error": "mesh object not found"}))
+else:
+    mat_name = {{matExpr}}
+    mat = bpy.data.materials.get(mat_name)
+    if mat is None:
+        mat = bpy.data.materials.new(name=mat_name)
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes.get('Principled BSDF')
+    if bsdf:
+        bsdf.inputs['Base Color'].default_value = ({{color[0].ToString(System.Globalization.CultureInfo.InvariantCulture)}}, {{color[1].ToString(System.Globalization.CultureInfo.InvariantCulture)}}, {{color[2].ToString(System.Globalization.CultureInfo.InvariantCulture)}}, {{color[3].ToString(System.Globalization.CultureInfo.InvariantCulture)}})
+        {{roughLine}}
+        {{metalLine}}
+    if obj.data.materials:
+        obj.data.materials[0] = mat
+    else:
+        obj.data.materials.append(mat)
+    print("SD_JSON:" + json.dumps({"ok": True, "object": obj.name, "material": mat.name, "provider": "blender-python"}))
+""";
+    }
+
+    public static string BuildUvUnwrapScript(string objectName, string method, double margin, double angleLimit) => $$"""
+import bpy, json
+obj = bpy.data.objects.get({{JsonSerializer.Serialize(objectName)}})
+if obj is None or obj.type != 'MESH':
+    print("SD_JSON:" + json.dumps({"ok": False, "error": "mesh object not found"}))
+else:
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='SELECT')
+    method = {{JsonSerializer.Serialize(method)}}
+    if method == 'SMART':
+        bpy.ops.uv.smart_project(angle_limit={{angleLimit.ToString(System.Globalization.CultureInfo.InvariantCulture)}})
+    else:
+        bpy.ops.uv.unwrap(method=method, margin={{margin.ToString(System.Globalization.CultureInfo.InvariantCulture)}})
+    bpy.ops.object.mode_set(mode='OBJECT')
+    print("SD_JSON:" + json.dumps({"ok": True, "object": obj.name, "method": method, "provider": "blender-python"}))
+""";
+
+    public static string BuildSelectGeometryScript(string objectName, string mode, bool selectAll, IReadOnlyList<int>? indices)
+    {
+        var indicesJson = JsonSerializer.Serialize(indices ?? Array.Empty<int>());
+        return $$"""
+import bpy, bmesh, json
+obj = bpy.data.objects.get({{JsonSerializer.Serialize(objectName)}})
+if obj is None or obj.type != 'MESH':
+    print("SD_JSON:" + json.dumps({"ok": False, "error": "mesh object not found"}))
+else:
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode='EDIT')
+    mode = {{JsonSerializer.Serialize(mode)}}
+    select_all = {{(selectAll ? "True" : "False")}}
+    indices = {{indicesJson}}
+    bpy.ops.mesh.select_mode(type=mode)
+    if select_all:
+        bpy.ops.mesh.select_all(action='SELECT')
+        count = {'VERT': len(obj.data.vertices), 'EDGE': len(obj.data.edges), 'FACE': len(obj.data.polygons)}[mode]
+    else:
+        bm = bmesh.from_edit_mesh(obj.data)
+        bm.faces.ensure_lookup_table(); bm.edges.ensure_lookup_table(); bm.verts.ensure_lookup_table()
+        bpy.ops.mesh.select_all(action='DESELECT')
+        count = 0
+        for i in indices:
+            if mode == 'VERT' and 0 <= i < len(bm.verts):
+                bm.verts[i].select = True; count += 1
+            elif mode == 'EDGE' and 0 <= i < len(bm.edges):
+                bm.edges[i].select = True; count += 1
+            elif mode == 'FACE' and 0 <= i < len(bm.faces):
+                bm.faces[i].select = True; count += 1
+        bmesh.update_edit_mesh(obj.data)
+    print("SD_JSON:" + json.dumps({"ok": True, "object": obj.name, "mode": mode, "selected": count, "provider": "blender-python"}))
+""";
+    }
+
     public static string BuildBatchScript(IReadOnlyList<Dictionary<string, object?>> operations, bool failFast)
     {
         var sb = new StringBuilder();
@@ -283,8 +543,59 @@ else:
             "create_mesh" => pad + $"bpy.ops.mesh.primitive_cube_add()\n" + pad + "# create_mesh simplified in batch; prefer dedicated create_mesh tool",
             "apply_transform" => pad + BuildApplyTransformScript(GetString(op, "name")).Replace("\n", "\n" + pad).TrimStart(),
             "join" => pad + "raise RuntimeError('join in batch requires names array')",
+            "mesh_extrude" => pad + "raise RuntimeError('mesh_extrude in batch: use dedicated blender.mesh_extrude tool')",
+            "mesh_inset" => pad + "raise RuntimeError('mesh_inset in batch: use dedicated blender.mesh_inset tool')",
+            "mesh_bevel" => pad + "raise RuntimeError('mesh_bevel in batch: use dedicated blender.mesh_bevel tool')",
+            "mesh_loop_cut" => pad + "raise RuntimeError('mesh_loop_cut in batch: use dedicated blender.mesh_loop_cut tool')",
+            "modifier_boolean" => BuildBatchModifierBoolean(op, pad),
+            "modifier_mirror" => BuildBatchModifierMirror(op, pad),
+            "modifier_array" => BuildBatchModifierArray(op, pad),
+            "material_set" => pad + "raise RuntimeError('material_set in batch: use dedicated blender.material_set tool')",
+            "uv_unwrap" => pad + "raise RuntimeError('uv_unwrap in batch: use dedicated blender.uv_unwrap tool')",
+            "select_geometry" => pad + "raise RuntimeError('select_geometry in batch: use dedicated blender.select_geometry tool')",
             _ => pad + $"raise RuntimeError('unsupported op: {opName}')"
         };
+    }
+
+    private static string BuildBatchModifierBoolean(Dictionary<string, object?> op, string pad)
+    {
+        var name = GetString(op, "name") ?? GetString(op, "object") ?? "";
+        var target = GetString(op, "target") ?? GetString(op, "operand") ?? "";
+        var operation = (GetString(op, "operation") ?? "DIFFERENCE").ToUpperInvariant();
+        return pad + $"obj = bpy.data.objects.get({JsonSerializer.Serialize(name)})\n" +
+               pad + $"target = bpy.data.objects.get({JsonSerializer.Serialize(target)})\n" +
+               pad + "if obj is None or target is None: raise RuntimeError('object/target required')\n" +
+               pad + "bpy.context.view_layer.objects.active = obj\n" +
+               pad + "mod = obj.modifiers.new(name='Boolean', type='BOOLEAN')\n" +
+               pad + $"mod.operation = {JsonSerializer.Serialize(operation)}\n" +
+               pad + "mod.object = target\n" +
+               pad + "bpy.ops.object.modifier_apply(modifier=mod.name)";
+    }
+
+    private static string BuildBatchModifierMirror(Dictionary<string, object?> op, string pad)
+    {
+        var name = GetString(op, "name") ?? GetString(op, "object") ?? "";
+        var axis = (GetString(op, "axis") ?? "X").ToUpperInvariant();
+        return pad + $"obj = bpy.data.objects.get({JsonSerializer.Serialize(name)})\n" +
+               pad + "if obj is None: raise RuntimeError('object required')\n" +
+               pad + "bpy.context.view_layer.objects.active = obj\n" +
+               pad + "mod = obj.modifiers.new(name='Mirror', type='MIRROR')\n" +
+               pad + $"mod.use_axis[0] = {JsonSerializer.Serialize(axis)} == 'X'\n" +
+               pad + $"mod.use_axis[1] = {JsonSerializer.Serialize(axis)} == 'Y'\n" +
+               pad + $"mod.use_axis[2] = {JsonSerializer.Serialize(axis)} == 'Z'\n" +
+               pad + "bpy.ops.object.modifier_apply(modifier=mod.name)";
+    }
+
+    private static string BuildBatchModifierArray(Dictionary<string, object?> op, string pad)
+    {
+        var name = GetString(op, "name") ?? GetString(op, "object") ?? "";
+        var count = GetInt(op, "count") ?? 2;
+        return pad + $"obj = bpy.data.objects.get({JsonSerializer.Serialize(name)})\n" +
+               pad + "if obj is None: raise RuntimeError('object required')\n" +
+               pad + "bpy.context.view_layer.objects.active = obj\n" +
+               pad + "mod = obj.modifiers.new(name='Array', type='ARRAY')\n" +
+               pad + $"mod.count = {count}\n" +
+               pad + "bpy.ops.object.modifier_apply(modifier=mod.name)";
     }
 
     private static string BuildBatchExportStep(Dictionary<string, object?> op, string pad)

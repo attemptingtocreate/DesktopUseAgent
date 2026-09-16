@@ -22,7 +22,7 @@ Then in Blender: Edit → Preferences → Add-ons → search "DesktopUseAgent" �
 2. Open the View3D sidebar (N) → DesktopUseAgent tab.
 3. Click **Enable Agent Bridge**.
 
-The add-on polls `127.0.0.1` only. Arbitrary Python execution is not exposed through the bridge.
+The add-on polls `127.0.0.1` only. Live `execute_python` requires `confirm=true`, a 32KB source cap, and restricted builtins; prefer structured mesh ops when possible.
 
 ## Security
 

@@ -187,6 +187,10 @@ public sealed class PermissionEngine
                 or CommandNames.BlenderExport or CommandNames.BlenderSave
                 or CommandNames.BlenderBatch or CommandNames.BlenderRender or CommandNames.BlenderImportMesh
                 or CommandNames.BlenderCreateMesh or CommandNames.BlenderExportForRoblox
+                or CommandNames.BlenderMeshExtrude or CommandNames.BlenderMeshInset or CommandNames.BlenderMeshBevel
+                or CommandNames.BlenderMeshLoopCut or CommandNames.BlenderModifierBoolean or CommandNames.BlenderModifierMirror
+                or CommandNames.BlenderModifierArray or CommandNames.BlenderMaterialSet or CommandNames.BlenderUvUnwrap
+                or CommandNames.BlenderSelectGeometry
                 or CommandNames.VsCodeOpenFile or CommandNames.VsCodeOpenFolder or CommandNames.VsCodeExecuteCommand
                 or CommandNames.VisualStudioBuild or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
                 or CommandNames.RobloxOpenPlace or CommandNames.RobloxSelect or CommandNames.RobloxSetProperty
@@ -247,6 +251,10 @@ public sealed class PermissionEngine
                 or CommandNames.BlenderExport or CommandNames.BlenderSave
                 or CommandNames.BlenderBatch or CommandNames.BlenderRender or CommandNames.BlenderImportMesh
                 or CommandNames.BlenderCreateMesh or CommandNames.BlenderExportForRoblox
+                or CommandNames.BlenderMeshExtrude or CommandNames.BlenderMeshInset or CommandNames.BlenderMeshBevel
+                or CommandNames.BlenderMeshLoopCut or CommandNames.BlenderModifierBoolean or CommandNames.BlenderModifierMirror
+                or CommandNames.BlenderModifierArray or CommandNames.BlenderMaterialSet or CommandNames.BlenderUvUnwrap
+                or CommandNames.BlenderSelectGeometry
                 or CommandNames.VsCodeOpenFile or CommandNames.VsCodeOpenFolder or CommandNames.VsCodeExecuteCommand
                 or CommandNames.VisualStudioBuild or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
                 or CommandNames.RobloxOpenPlace or CommandNames.RobloxSelect or CommandNames.RobloxSetProperty

@@ -178,6 +178,16 @@ public static class CommandNames
     public const string BlenderImportMesh = "blender.import_mesh";
     public const string BlenderCreateMesh = "blender.create_mesh";
     public const string BlenderExportForRoblox = "blender.export_for_roblox";
+    public const string BlenderMeshExtrude = "blender.mesh_extrude";
+    public const string BlenderMeshInset = "blender.mesh_inset";
+    public const string BlenderMeshBevel = "blender.mesh_bevel";
+    public const string BlenderMeshLoopCut = "blender.mesh_loop_cut";
+    public const string BlenderModifierBoolean = "blender.modifier_boolean";
+    public const string BlenderModifierMirror = "blender.modifier_mirror";
+    public const string BlenderModifierArray = "blender.modifier_array";
+    public const string BlenderMaterialSet = "blender.material_set";
+    public const string BlenderUvUnwrap = "blender.uv_unwrap";
+    public const string BlenderSelectGeometry = "blender.select_geometry";
 
     public const string VsCodeOpenFile = "vscode.open_file";
     public const string VsCodeOpenFolder = "vscode.open_folder";

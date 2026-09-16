@@ -46,7 +46,17 @@ public sealed class BlenderAdapter : IApplicationAdapter
                 CommandNames.BlenderRender,
                 CommandNames.BlenderImportMesh,
                 CommandNames.BlenderCreateMesh,
-                CommandNames.BlenderExportForRoblox
+                CommandNames.BlenderExportForRoblox,
+                CommandNames.BlenderMeshExtrude,
+                CommandNames.BlenderMeshInset,
+                CommandNames.BlenderMeshBevel,
+                CommandNames.BlenderMeshLoopCut,
+                CommandNames.BlenderModifierBoolean,
+                CommandNames.BlenderModifierMirror,
+                CommandNames.BlenderModifierArray,
+                CommandNames.BlenderMaterialSet,
+                CommandNames.BlenderUvUnwrap,
+                CommandNames.BlenderSelectGeometry
             },
             Meta = new Dictionary<string, object?>
             {
@@ -85,6 +95,16 @@ public sealed class BlenderAdapter : IApplicationAdapter
             CommandNames.BlenderImportMesh => await ImportMeshAsync(command, cancellationToken).ConfigureAwait(false),
             CommandNames.BlenderCreateMesh => await CreateMeshAsync(command, cancellationToken).ConfigureAwait(false),
             CommandNames.BlenderExportForRoblox => await ExportForRobloxAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.BlenderMeshExtrude => await MeshExtrudeAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.BlenderMeshInset => await MeshInsetAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.BlenderMeshBevel => await MeshBevelAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.BlenderMeshLoopCut => await MeshLoopCutAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.BlenderModifierBoolean => await ModifierBooleanAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.BlenderModifierMirror => await ModifierMirrorAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.BlenderModifierArray => await ModifierArrayAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.BlenderMaterialSet => await MaterialSetAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.BlenderUvUnwrap => await UvUnwrapAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.BlenderSelectGeometry => await SelectGeometryAsync(command, cancellationToken).ConfigureAwait(false),
             _ => AdapterResult.Fail(ErrorCodes.Unsupported, $"Unknown blender action '{command.Action}'.")
         };
     }
@@ -156,10 +176,33 @@ public sealed class BlenderAdapter : IApplicationAdapter
 
     private async Task<AdapterResult> ExecutePythonAsync(AdapterCommand command, CancellationToken ct)
     {
-        var code = GetString(command.Params, "code") ?? GetString(command.Params, "python");
+        var code = GetString(command.Params, "code")
+                   ?? GetString(command.Params, "python")
+                   ?? GetString(command.Params, "source");
         if (string.IsNullOrWhiteSpace(code))
         {
             return AdapterResult.Fail(ErrorCodes.InvalidArgument, "code is required.");
+        }
+
+        var mode = ResolveMode(command);
+        var preferLive = mode == BlenderExecutionMode.Live
+                         || (mode == BlenderExecutionMode.Auto && CanUseLiveBridge(command));
+        if (preferLive)
+        {
+            var confirm = GetBool(command.Params, "confirm") ?? false;
+            if (!BlenderMeshOpsContract.TryValidateExecutePython(code, confirm, out var error))
+            {
+                return AdapterResult.Fail(ErrorCodes.InvalidArgument, error ?? "invalid execute_python request.");
+            }
+
+            var bridgeParams = new Dictionary<string, object?>
+            {
+                ["source"] = code,
+                ["code"] = code,
+                ["confirm"] = true
+            };
+            return await ExecuteLiveAsync(BlenderBridgeOperations.ExecutePython, bridgeParams, command, ct)
+                .ConfigureAwait(false);
         }
 
         var exe = RequireExecutable();
@@ -274,6 +317,457 @@ public sealed class BlenderAdapter : IApplicationAdapter
             command,
             ct,
             bridgeParams).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> MeshExtrudeAsync(AdapterCommand command, CancellationToken ct)
+    {
+        var objectName = RequireObjectName(command.Params);
+        if (objectName.Error is not null)
+        {
+            return objectName.Error;
+        }
+
+        var mode = ResolveGeometryMode(command.Params, "FACE");
+        if (!BlenderMeshOpsContract.GeometryModes.Contains(mode))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "mode must be VERT, EDGE, or FACE.");
+        }
+
+        var value = GetDouble(command.Params, "value") ?? GetDouble(command.Params, "offset") ?? 0d;
+        var indices = GetIntList(command.Params, "indices") ?? GetIntList(command.Params, "index");
+        var bridgeParams = new Dictionary<string, object?>
+        {
+            ["name"] = objectName.Value,
+            ["object"] = objectName.Value,
+            ["mode"] = mode,
+            ["value"] = value,
+            ["indices"] = indices
+        };
+        return await RouteAsync(
+            BlenderBridgeOperations.MeshExtrude,
+            () => RunBackgroundScriptAsync(
+                BlenderScriptBuilder.BuildMeshExtrudeScript(objectName.Value!, mode, value, indices),
+                command,
+                ct,
+                GetOptionalBlendFile(command.Params)),
+            command,
+            ct,
+            bridgeParams).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> MeshInsetAsync(AdapterCommand command, CancellationToken ct)
+    {
+        var objectName = RequireObjectName(command.Params);
+        if (objectName.Error is not null)
+        {
+            return objectName.Error;
+        }
+
+        var thickness = GetDouble(command.Params, "thickness") ?? 0.1;
+        var depth = GetDouble(command.Params, "depth") ?? 0d;
+        var indices = GetIntList(command.Params, "indices") ?? GetIntList(command.Params, "index");
+        var bridgeParams = new Dictionary<string, object?>
+        {
+            ["name"] = objectName.Value,
+            ["object"] = objectName.Value,
+            ["thickness"] = thickness,
+            ["depth"] = depth,
+            ["indices"] = indices
+        };
+        return await RouteAsync(
+            BlenderBridgeOperations.MeshInset,
+            () => RunBackgroundScriptAsync(
+                BlenderScriptBuilder.BuildMeshInsetScript(objectName.Value!, thickness, depth, indices),
+                command,
+                ct,
+                GetOptionalBlendFile(command.Params)),
+            command,
+            ct,
+            bridgeParams).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> MeshBevelAsync(AdapterCommand command, CancellationToken ct)
+    {
+        var objectName = RequireObjectName(command.Params);
+        if (objectName.Error is not null)
+        {
+            return objectName.Error;
+        }
+
+        var mode = ResolveGeometryMode(command.Params, "EDGE");
+        if (!BlenderMeshOpsContract.GeometryModes.Contains(mode))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "mode must be VERT, EDGE, or FACE.");
+        }
+
+        var offset = GetDouble(command.Params, "offset") ?? GetDouble(command.Params, "width") ?? 0.05;
+        var segments = Math.Max(1, GetInt(command.Params, "segments") ?? 1);
+        var indices = GetIntList(command.Params, "indices") ?? GetIntList(command.Params, "index");
+        var bridgeParams = new Dictionary<string, object?>
+        {
+            ["name"] = objectName.Value,
+            ["object"] = objectName.Value,
+            ["mode"] = mode,
+            ["offset"] = offset,
+            ["segments"] = segments,
+            ["indices"] = indices
+        };
+        return await RouteAsync(
+            BlenderBridgeOperations.MeshBevel,
+            () => RunBackgroundScriptAsync(
+                BlenderScriptBuilder.BuildMeshBevelScript(objectName.Value!, mode, offset, segments, indices),
+                command,
+                ct,
+                GetOptionalBlendFile(command.Params)),
+            command,
+            ct,
+            bridgeParams).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> MeshLoopCutAsync(AdapterCommand command, CancellationToken ct)
+    {
+        var objectName = RequireObjectName(command.Params);
+        if (objectName.Error is not null)
+        {
+            return objectName.Error;
+        }
+
+        var cuts = Math.Clamp(GetInt(command.Params, "cuts") ?? 1, 1, 64);
+        var edgeIndex = GetInt(command.Params, "edgeIndex");
+        var bridgeParams = new Dictionary<string, object?>
+        {
+            ["name"] = objectName.Value,
+            ["object"] = objectName.Value,
+            ["cuts"] = cuts,
+            ["edgeIndex"] = edgeIndex
+        };
+        return await RouteAsync(
+            BlenderBridgeOperations.MeshLoopCut,
+            () => RunBackgroundScriptAsync(
+                BlenderScriptBuilder.BuildMeshLoopCutScript(objectName.Value!, cuts, edgeIndex),
+                command,
+                ct,
+                GetOptionalBlendFile(command.Params)),
+            command,
+            ct,
+            bridgeParams).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> ModifierBooleanAsync(AdapterCommand command, CancellationToken ct)
+    {
+        var objectName = RequireObjectName(command.Params);
+        if (objectName.Error is not null)
+        {
+            return objectName.Error;
+        }
+
+        var target = GetString(command.Params, "target") ?? GetString(command.Params, "operand");
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "target mesh object is required.");
+        }
+
+        var operation = (GetString(command.Params, "operation") ?? "DIFFERENCE").ToUpperInvariant();
+        if (!BlenderMeshOpsContract.BooleanOperations.Contains(operation))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "operation must be UNION, DIFFERENCE, or INTERSECT.");
+        }
+
+        var apply = GetBool(command.Params, "apply") ?? true;
+        var bridgeParams = new Dictionary<string, object?>
+        {
+            ["name"] = objectName.Value,
+            ["object"] = objectName.Value,
+            ["target"] = target,
+            ["operation"] = operation,
+            ["apply"] = apply,
+            ["modifierName"] = GetString(command.Params, "modifierName")
+        };
+        return await RouteAsync(
+            BlenderBridgeOperations.ModifierBoolean,
+            () => RunBackgroundScriptAsync(
+                BlenderScriptBuilder.BuildModifierBooleanScript(objectName.Value!, target!, operation, apply),
+                command,
+                ct,
+                GetOptionalBlendFile(command.Params)),
+            command,
+            ct,
+            bridgeParams).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> ModifierMirrorAsync(AdapterCommand command, CancellationToken ct)
+    {
+        var objectName = RequireObjectName(command.Params);
+        if (objectName.Error is not null)
+        {
+            return objectName.Error;
+        }
+
+        var axis = (GetString(command.Params, "axis") ?? "X").ToUpperInvariant();
+        if (!BlenderMeshOpsContract.MirrorAxes.Contains(axis))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "axis must be X, Y, or Z.");
+        }
+
+        var apply = GetBool(command.Params, "apply") ?? true;
+        var bridgeParams = new Dictionary<string, object?>
+        {
+            ["name"] = objectName.Value,
+            ["object"] = objectName.Value,
+            ["axis"] = axis,
+            ["apply"] = apply,
+            ["modifierName"] = GetString(command.Params, "modifierName")
+        };
+        return await RouteAsync(
+            BlenderBridgeOperations.ModifierMirror,
+            () => RunBackgroundScriptAsync(
+                BlenderScriptBuilder.BuildModifierMirrorScript(objectName.Value!, axis, apply),
+                command,
+                ct,
+                GetOptionalBlendFile(command.Params)),
+            command,
+            ct,
+            bridgeParams).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> ModifierArrayAsync(AdapterCommand command, CancellationToken ct)
+    {
+        var objectName = RequireObjectName(command.Params);
+        if (objectName.Error is not null)
+        {
+            return objectName.Error;
+        }
+
+        var count = Math.Clamp(GetInt(command.Params, "count") ?? 2, 2, 64);
+        var relative = GetDoubleArray(command.Params, "relativeOffset", 3)
+                       ?? GetDoubleArray(command.Params, "offset", 3)
+                       ?? new[] { 1d, 0d, 0d };
+        var apply = GetBool(command.Params, "apply") ?? true;
+        var bridgeParams = new Dictionary<string, object?>
+        {
+            ["name"] = objectName.Value,
+            ["object"] = objectName.Value,
+            ["count"] = count,
+            ["relativeOffset"] = relative,
+            ["apply"] = apply,
+            ["modifierName"] = GetString(command.Params, "modifierName")
+        };
+        return await RouteAsync(
+            BlenderBridgeOperations.ModifierArray,
+            () => RunBackgroundScriptAsync(
+                BlenderScriptBuilder.BuildModifierArrayScript(objectName.Value!, count, relative, apply),
+                command,
+                ct,
+                GetOptionalBlendFile(command.Params)),
+            command,
+            ct,
+            bridgeParams).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> MaterialSetAsync(AdapterCommand command, CancellationToken ct)
+    {
+        var objectName = RequireObjectName(command.Params);
+        if (objectName.Error is not null)
+        {
+            return objectName.Error;
+        }
+
+        var material = GetString(command.Params, "material") ?? GetString(command.Params, "materialName");
+        var color = GetDoubleArray(command.Params, "color", 4)
+                    ?? GetDoubleArray(command.Params, "color", 3)
+                    ?? GetDoubleArray(command.Params, "baseColor", 4)
+                    ?? GetDoubleArray(command.Params, "baseColor", 3)
+                    ?? new[] { 0.8, 0.8, 0.8, 1.0 };
+        if (color.Length == 3)
+        {
+            color = new[] { color[0], color[1], color[2], 1.0 };
+        }
+
+        var roughness = GetDouble(command.Params, "roughness");
+        var metallic = GetDouble(command.Params, "metallic");
+        var bridgeParams = new Dictionary<string, object?>
+        {
+            ["name"] = objectName.Value,
+            ["object"] = objectName.Value,
+            ["material"] = material,
+            ["materialName"] = material,
+            ["color"] = color,
+            ["roughness"] = roughness,
+            ["metallic"] = metallic
+        };
+        return await RouteAsync(
+            BlenderBridgeOperations.MaterialSet,
+            () => RunBackgroundScriptAsync(
+                BlenderScriptBuilder.BuildMaterialSetScript(objectName.Value!, material, color, roughness, metallic),
+                command,
+                ct,
+                GetOptionalBlendFile(command.Params)),
+            command,
+            ct,
+            bridgeParams).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> UvUnwrapAsync(AdapterCommand command, CancellationToken ct)
+    {
+        var objectName = RequireObjectName(command.Params);
+        if (objectName.Error is not null)
+        {
+            return objectName.Error;
+        }
+
+        var method = (GetString(command.Params, "method") ?? "ANGLE_BASED").ToUpperInvariant();
+        if (!BlenderMeshOpsContract.UvMethods.Contains(method))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "method must be ANGLE_BASED, CONFORMAL, or SMART.");
+        }
+
+        var margin = GetDouble(command.Params, "margin") ?? 0.001;
+        var angleLimit = GetDouble(command.Params, "angleLimit") ?? 66.0;
+        var bridgeParams = new Dictionary<string, object?>
+        {
+            ["name"] = objectName.Value,
+            ["object"] = objectName.Value,
+            ["method"] = method,
+            ["margin"] = margin,
+            ["angleLimit"] = angleLimit
+        };
+        return await RouteAsync(
+            BlenderBridgeOperations.UvUnwrap,
+            () => RunBackgroundScriptAsync(
+                BlenderScriptBuilder.BuildUvUnwrapScript(objectName.Value!, method, margin, angleLimit),
+                command,
+                ct,
+                GetOptionalBlendFile(command.Params)),
+            command,
+            ct,
+            bridgeParams).ConfigureAwait(false);
+    }
+
+    private async Task<AdapterResult> SelectGeometryAsync(AdapterCommand command, CancellationToken ct)
+    {
+        var objectName = RequireObjectName(command.Params);
+        if (objectName.Error is not null)
+        {
+            return objectName.Error;
+        }
+
+        var mode = ResolveGeometryMode(command.Params, "FACE");
+        if (!BlenderMeshOpsContract.GeometryModes.Contains(mode))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "mode must be VERT, EDGE, or FACE.");
+        }
+
+        var selectAll = GetBool(command.Params, "selectAll") ?? false;
+        var indices = GetIntList(command.Params, "indices") ?? GetIntList(command.Params, "index");
+        if (!selectAll && (indices is null || indices.Count == 0))
+        {
+            return AdapterResult.Fail(ErrorCodes.InvalidArgument, "indices or selectAll required.");
+        }
+
+        var bridgeParams = new Dictionary<string, object?>
+        {
+            ["name"] = objectName.Value,
+            ["object"] = objectName.Value,
+            ["mode"] = mode,
+            ["selectAll"] = selectAll,
+            ["indices"] = indices
+        };
+        return await RouteAsync(
+            BlenderBridgeOperations.SelectGeometry,
+            () => RunBackgroundScriptAsync(
+                BlenderScriptBuilder.BuildSelectGeometryScript(objectName.Value!, mode, selectAll, indices),
+                command,
+                ct,
+                GetOptionalBlendFile(command.Params)),
+            command,
+            ct,
+            bridgeParams).ConfigureAwait(false);
+    }
+
+    private static string ResolveGeometryMode(Dictionary<string, object?>? parameters, string fallback)
+    {
+        var raw = GetString(parameters, "element")
+                  ?? GetString(parameters, "geometryMode")
+                  ?? GetString(parameters, "mode");
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return fallback;
+        }
+
+        var upper = raw.ToUpperInvariant();
+        return upper is "AUTO" or "LIVE" or "BACKGROUND" ? fallback : upper;
+    }
+
+    private static (string? Value, AdapterResult? Error) RequireObjectName(Dictionary<string, object?>? parameters)
+    {
+        var name = GetString(parameters, "name") ?? GetString(parameters, "object");
+        return string.IsNullOrWhiteSpace(name)
+            ? (null, AdapterResult.Fail(ErrorCodes.InvalidArgument, "name (object) is required."))
+            : (name, null);
+    }
+
+    private static List<int>? GetIntList(Dictionary<string, object?>? parameters, string name)
+    {
+        if (parameters is null || !parameters.TryGetValue(name, out var value) || value is null)
+        {
+            return null;
+        }
+
+        if (value is int i)
+        {
+            return new List<int> { i };
+        }
+
+        if (value is long l)
+        {
+            return new List<int> { (int)l };
+        }
+
+        if (value is JsonElement el)
+        {
+            if (el.ValueKind == JsonValueKind.Number && el.TryGetInt32(out var n))
+            {
+                return new List<int> { n };
+            }
+
+            if (el.ValueKind == JsonValueKind.Array)
+            {
+                var list = new List<int>();
+                foreach (var item in el.EnumerateArray())
+                {
+                    if (item.ValueKind == JsonValueKind.Number && item.TryGetInt32(out var v))
+                    {
+                        list.Add(v);
+                    }
+                }
+
+                return list;
+            }
+        }
+
+        if (value is IEnumerable<object> objs)
+        {
+            var list = new List<int>();
+            foreach (var item in objs)
+            {
+                switch (item)
+                {
+                    case int ii:
+                        list.Add(ii);
+                        break;
+                    case long ll:
+                        list.Add((int)ll);
+                        break;
+                    case JsonElement je when je.TryGetInt32(out var n):
+                        list.Add(n);
+                        break;
+                }
+            }
+
+            return list;
+        }
+
+        return null;
     }
 
     private static double[]? GetDoubleArray(Dictionary<string, object?>? parameters, string name, int expectedLength)

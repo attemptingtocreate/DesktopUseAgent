@@ -95,6 +95,17 @@ public static class BlenderBridgeOperations
     public const string ExportForRoblox = "export_for_roblox";
     public const string ApplyTransform = "apply_transform";
     public const string Join = "join";
+    public const string MeshExtrude = "mesh_extrude";
+    public const string MeshInset = "mesh_inset";
+    public const string MeshBevel = "mesh_bevel";
+    public const string MeshLoopCut = "mesh_loop_cut";
+    public const string ModifierBoolean = "modifier_boolean";
+    public const string ModifierMirror = "modifier_mirror";
+    public const string ModifierArray = "modifier_array";
+    public const string MaterialSet = "material_set";
+    public const string UvUnwrap = "uv_unwrap";
+    public const string SelectGeometry = "select_geometry";
+    public const string ExecutePython = "execute_python";
 
     public static readonly HashSet<string> Allowlist = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -109,7 +120,18 @@ public static class BlenderBridgeOperations
         ImportMesh,
         CreateMesh,
         ApplyTransform,
-        Join
+        Join,
+        MeshExtrude,
+        MeshInset,
+        MeshBevel,
+        MeshLoopCut,
+        ModifierBoolean,
+        ModifierMirror,
+        ModifierArray,
+        MaterialSet,
+        UvUnwrap,
+        SelectGeometry,
+        ExecutePython
     };
 
     public static readonly HashSet<string> BatchAllowlist = new(StringComparer.OrdinalIgnoreCase)
@@ -124,7 +146,18 @@ public static class BlenderBridgeOperations
         ImportMesh,
         CreateMesh,
         ApplyTransform,
-        Join
+        Join,
+        MeshExtrude,
+        MeshInset,
+        MeshBevel,
+        MeshLoopCut,
+        ModifierBoolean,
+        ModifierMirror,
+        ModifierArray,
+        MaterialSet,
+        UvUnwrap,
+        SelectGeometry
+        // execute_python excluded from batch
     };
 }
 

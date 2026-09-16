@@ -289,6 +289,10 @@ public sealed class CommandDispatcher : IDisposable
                 or CommandNames.BlenderSelectObject or CommandNames.BlenderExecutePython or CommandNames.BlenderExport or CommandNames.BlenderSave
                 or CommandNames.BlenderBatch or CommandNames.BlenderRender or CommandNames.BlenderImportMesh
                 or CommandNames.BlenderCreateMesh or CommandNames.BlenderExportForRoblox
+                or CommandNames.BlenderMeshExtrude or CommandNames.BlenderMeshInset or CommandNames.BlenderMeshBevel
+                or CommandNames.BlenderMeshLoopCut or CommandNames.BlenderModifierBoolean or CommandNames.BlenderModifierMirror
+                or CommandNames.BlenderModifierArray or CommandNames.BlenderMaterialSet or CommandNames.BlenderUvUnwrap
+                or CommandNames.BlenderSelectGeometry
                 or CommandNames.VsCodeOpenFile or CommandNames.VsCodeOpenFolder or CommandNames.VsCodeExecuteCommand or CommandNames.VsCodeGetWorkspace
                 or CommandNames.VisualStudioGetSolution or CommandNames.VisualStudioBuild
                 or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
@@ -870,6 +874,16 @@ public sealed class CommandDispatcher : IDisposable
                     CommandNames.BlenderImportMesh,
                     CommandNames.BlenderCreateMesh,
                     CommandNames.BlenderExportForRoblox,
+                    CommandNames.BlenderMeshExtrude,
+                    CommandNames.BlenderMeshInset,
+                    CommandNames.BlenderMeshBevel,
+                    CommandNames.BlenderMeshLoopCut,
+                    CommandNames.BlenderModifierBoolean,
+                    CommandNames.BlenderModifierMirror,
+                    CommandNames.BlenderModifierArray,
+                    CommandNames.BlenderMaterialSet,
+                    CommandNames.BlenderUvUnwrap,
+                    CommandNames.BlenderSelectGeometry,
                     CommandNames.VsCodeOpenFile,
                     CommandNames.VsCodeOpenFolder,
                     CommandNames.VsCodeExecuteCommand,

@@ -1,3 +1,4 @@
+import bmesh
 import bpy
 
 from . import validation
@@ -15,6 +16,17 @@ ALLOWLIST = {
     "create_mesh",
     "apply_transform",
     "join",
+    "mesh_extrude",
+    "mesh_inset",
+    "mesh_bevel",
+    "mesh_loop_cut",
+    "modifier_boolean",
+    "modifier_mirror",
+    "modifier_array",
+    "material_set",
+    "uv_unwrap",
+    "select_geometry",
+    "execute_python",
 }
 
 CREATE_MESH_KINDS = {
@@ -26,6 +38,69 @@ CREATE_MESH_KINDS = {
     "plane": "primitive_plane_add",
     "torus": "primitive_torus_add",
 }
+
+MAX_EXECUTE_PYTHON_BYTES = 32 * 1024
+BOOLEAN_OPS = {"UNION", "DIFFERENCE", "INTERSECT"}
+MIRROR_AXES = {"X", "Y", "Z"}
+UV_METHODS = {"ANGLE_BASED", "CONFORMAL", "SMART"}
+
+
+def _require_object(params, mesh_only=True):
+    name = params.get("name") or params.get("object")
+    obj = bpy.data.objects.get(name) if name else bpy.context.view_layer.objects.active
+    if obj is None:
+        raise RuntimeError("object not found")
+    if mesh_only and obj.type != "MESH":
+        raise RuntimeError("object must be a MESH")
+    return obj
+
+
+def _activate_object(obj):
+    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.ops.object.select_all(action="DESELECT")
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+
+
+def _enter_edit(obj):
+    _activate_object(obj)
+    bpy.ops.object.mode_set(mode="EDIT")
+
+
+def _ensure_bmesh(obj):
+    _enter_edit(obj)
+    bm = bmesh.from_edit_mesh(obj.data)
+    bm.faces.ensure_lookup_table()
+    bm.edges.ensure_lookup_table()
+    bm.verts.ensure_lookup_table()
+    return bm
+
+
+def _select_elements_safe(obj, mode, indices):
+    bm = _ensure_bmesh(obj)
+    bpy.ops.mesh.select_all(action="DESELECT")
+    mode = (mode or "FACE").upper()
+    selected = 0
+    if mode == "VERT":
+        bpy.ops.mesh.select_mode(type="VERT")
+        for i in indices:
+            if 0 <= int(i) < len(bm.verts):
+                bm.verts[int(i)].select = True
+                selected += 1
+    elif mode == "EDGE":
+        bpy.ops.mesh.select_mode(type="EDGE")
+        for i in indices:
+            if 0 <= int(i) < len(bm.edges):
+                bm.edges[int(i)].select = True
+                selected += 1
+    else:
+        bpy.ops.mesh.select_mode(type="FACE")
+        for i in indices:
+            if 0 <= int(i) < len(bm.faces):
+                bm.faces[int(i)].select = True
+                selected += 1
+    bmesh.update_edit_mesh(obj.data)
+    return selected
 
 
 def execute(operation, params):
@@ -49,7 +124,13 @@ def execute(operation, params):
     if operation == "get_objects":
         return {
             "objects": [
-                {"name": o.name, "type": o.type, "location": list(o.location)}
+                {
+                    "name": o.name,
+                    "type": o.type,
+                    "location": list(o.location),
+                    "verts": len(o.data.vertices) if o.type == "MESH" else 0,
+                    "faces": len(o.data.polygons) if o.type == "MESH" else 0,
+                }
                 for o in bpy.data.objects
             ]
         }
@@ -59,9 +140,7 @@ def execute(operation, params):
         obj = bpy.data.objects.get(name)
         if obj is None:
             raise RuntimeError("not found")
-        bpy.ops.object.select_all(action="DESELECT")
-        obj.select_set(True)
-        bpy.context.view_layer.objects.active = obj
+        _activate_object(obj)
         return {"selected": name}
 
     if operation == "export":
@@ -98,7 +177,6 @@ def execute(operation, params):
             allowed_extensions=validation.EXPORT_EXTENSIONS,
         )
         validation.ensure_parent_directory(output)
-        # Apply transforms on selected mesh objects for clean Studio import.
         mesh_objs = [o for o in bpy.context.scene.objects if o.type == "MESH"]
         if mesh_objs:
             bpy.ops.object.select_all(action="DESELECT")
@@ -211,9 +289,7 @@ def execute(operation, params):
         obj = bpy.data.objects.get(name) if name else bpy.context.view_layer.objects.active
         if obj is None:
             raise RuntimeError("object not found")
-        bpy.context.view_layer.objects.active = obj
-        bpy.ops.object.select_all(action="DESELECT")
-        obj.select_set(True)
+        _activate_object(obj)
         bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
         return {"applied": obj.name}
 
@@ -229,5 +305,208 @@ def execute(operation, params):
         bpy.context.view_layer.objects.active = objs[0]
         bpy.ops.object.join()
         return {"joined": objs[0].name}
+
+    if operation == "select_geometry":
+        obj = _require_object(params)
+        mode = (params.get("element") or params.get("geometryMode") or params.get("mode") or "FACE")
+        if isinstance(mode, str):
+            mode = mode.upper()
+        if mode in ("AUTO", "LIVE", "BACKGROUND"):
+            mode = "FACE"
+        if mode not in ("VERT", "EDGE", "FACE"):
+            raise RuntimeError("mode must be VERT, EDGE, or FACE")
+        select_all = bool(params.get("selectAll", False))
+        indices = params.get("indices") or params.get("index") or []
+        if isinstance(indices, int):
+            indices = [indices]
+        _enter_edit(obj)
+        if select_all:
+            bpy.ops.mesh.select_mode(type=mode)
+            bpy.ops.mesh.select_all(action="SELECT")
+            count = {"VERT": len(obj.data.vertices), "EDGE": len(obj.data.edges), "FACE": len(obj.data.polygons)}[mode]
+        else:
+            if not indices:
+                raise RuntimeError("indices or selectAll required")
+            count = _select_elements_safe(obj, mode, indices)
+        return {"object": obj.name, "mode": mode, "selected": count}
+
+    if operation == "mesh_extrude":
+        obj = _require_object(params)
+        _enter_edit(obj)
+        geom = params.get("element") or params.get("geometryMode") or params.get("mode") or "FACE"
+        if isinstance(geom, str):
+            geom = geom.upper()
+        if geom in ("AUTO", "LIVE", "BACKGROUND"):
+            geom = "FACE"
+        if params.get("indices"):
+            _select_elements_safe(obj, geom, params.get("indices"))
+        value = float(params.get("value") or params.get("offset") or 0.0)
+        bpy.ops.mesh.extrude_region_move(
+            TRANSFORM_OT_translate={"value": (0.0, 0.0, value)}
+        )
+        bpy.ops.object.mode_set(mode="OBJECT")
+        return {"object": obj.name, "extruded": value}
+
+    if operation == "mesh_inset":
+        obj = _require_object(params)
+        _enter_edit(obj)
+        if params.get("indices"):
+            _select_elements_safe(obj, "FACE", params.get("indices"))
+        thickness = float(params.get("thickness") or 0.1)
+        depth = float(params.get("depth") or 0.0)
+        bpy.ops.mesh.inset(thickness=thickness, depth=depth)
+        bpy.ops.object.mode_set(mode="OBJECT")
+        return {"object": obj.name, "thickness": thickness, "depth": depth}
+
+    if operation == "mesh_bevel":
+        obj = _require_object(params)
+        _enter_edit(obj)
+        geom = params.get("element") or params.get("geometryMode") or params.get("mode") or "EDGE"
+        if isinstance(geom, str):
+            geom = geom.upper()
+        if geom in ("AUTO", "LIVE", "BACKGROUND"):
+            geom = "EDGE"
+        if params.get("indices"):
+            _select_elements_safe(obj, geom, params.get("indices"))
+        offset = float(params.get("offset") or params.get("width") or 0.05)
+        segments = max(1, int(params.get("segments") or 1))
+        bpy.ops.mesh.bevel(offset=offset, segments=segments, affect="EDGES")
+        bpy.ops.object.mode_set(mode="OBJECT")
+        return {"object": obj.name, "offset": offset, "segments": segments}
+
+    if operation == "mesh_loop_cut":
+        obj = _require_object(params)
+        _enter_edit(obj)
+        cuts = max(1, min(64, int(params.get("cuts") or 1)))
+        edge_index = params.get("edgeIndex")
+        if edge_index is not None:
+            _select_elements_safe(obj, "EDGE", [int(edge_index)])
+        # loopcut_and_slide needs a VIEW3D region; fall back to subdivide if unavailable
+        try:
+            bpy.ops.mesh.loopcut_and_slide(MESH_OT_loopcut={"number_cuts": cuts})
+        except Exception:
+            bpy.ops.mesh.subdivide(number_cuts=cuts)
+        bpy.ops.object.mode_set(mode="OBJECT")
+        return {"object": obj.name, "cuts": cuts}
+
+    if operation == "modifier_boolean":
+        obj = _require_object(params)
+        target_name = params.get("target") or params.get("operand")
+        target = bpy.data.objects.get(target_name) if target_name else None
+        if target is None or target.type != "MESH":
+            raise RuntimeError("target mesh object required")
+        op = (params.get("operation") or "DIFFERENCE").upper()
+        if op not in BOOLEAN_OPS:
+            raise RuntimeError("operation must be UNION, DIFFERENCE, or INTERSECT")
+        _activate_object(obj)
+        mod = obj.modifiers.new(name=params.get("modifierName") or "Boolean", type="BOOLEAN")
+        mod.operation = op
+        mod.object = target
+        if bool(params.get("apply", True)):
+            bpy.ops.object.modifier_apply(modifier=mod.name)
+            return {"object": obj.name, "operation": op, "target": target.name, "applied": True}
+        return {"object": obj.name, "operation": op, "target": target.name, "applied": False, "modifier": mod.name}
+
+    if operation == "modifier_mirror":
+        obj = _require_object(params)
+        axis = (params.get("axis") or "X").upper()
+        if axis not in MIRROR_AXES:
+            raise RuntimeError("axis must be X, Y, or Z")
+        _activate_object(obj)
+        mod = obj.modifiers.new(name=params.get("modifierName") or "Mirror", type="MIRROR")
+        mod.use_axis[0] = axis == "X"
+        mod.use_axis[1] = axis == "Y"
+        mod.use_axis[2] = axis == "Z"
+        if bool(params.get("apply", True)):
+            bpy.ops.object.modifier_apply(modifier=mod.name)
+            return {"object": obj.name, "axis": axis, "applied": True}
+        return {"object": obj.name, "axis": axis, "applied": False, "modifier": mod.name}
+
+    if operation == "modifier_array":
+        obj = _require_object(params)
+        count = max(2, min(64, int(params.get("count") or 2)))
+        relative = params.get("relativeOffset") or params.get("offset") or [1, 0, 0]
+        _activate_object(obj)
+        mod = obj.modifiers.new(name=params.get("modifierName") or "Array", type="ARRAY")
+        mod.count = count
+        mod.relative_offset_displace = (float(relative[0]), float(relative[1]), float(relative[2]))
+        if bool(params.get("apply", True)):
+            bpy.ops.object.modifier_apply(modifier=mod.name)
+            return {"object": obj.name, "count": count, "applied": True}
+        return {"object": obj.name, "count": count, "applied": False, "modifier": mod.name}
+
+    if operation == "material_set":
+        obj = _require_object(params)
+        mat_name = params.get("material") or params.get("materialName") or f"{obj.name}_Mat"
+        color = params.get("color") or params.get("baseColor") or [0.8, 0.8, 0.8, 1.0]
+        if len(color) == 3:
+            color = list(color) + [1.0]
+        mat = bpy.data.materials.get(mat_name)
+        if mat is None:
+            mat = bpy.data.materials.new(name=mat_name)
+        mat.use_nodes = True
+        bsdf = mat.node_tree.nodes.get("Principled BSDF")
+        if bsdf:
+            bsdf.inputs["Base Color"].default_value = (
+                float(color[0]),
+                float(color[1]),
+                float(color[2]),
+                float(color[3]),
+            )
+            if params.get("roughness") is not None:
+                bsdf.inputs["Roughness"].default_value = float(params["roughness"])
+            if params.get("metallic") is not None:
+                bsdf.inputs["Metallic"].default_value = float(params["metallic"])
+        if obj.data.materials:
+            obj.data.materials[0] = mat
+        else:
+            obj.data.materials.append(mat)
+        return {"object": obj.name, "material": mat.name, "color": list(color)}
+
+    if operation == "uv_unwrap":
+        obj = _require_object(params)
+        method = (params.get("method") or "ANGLE_BASED").upper()
+        if method not in UV_METHODS:
+            raise RuntimeError("method must be ANGLE_BASED, CONFORMAL, or SMART")
+        _enter_edit(obj)
+        bpy.ops.mesh.select_all(action="SELECT")
+        if method == "SMART":
+            bpy.ops.uv.smart_project(angle_limit=float(params.get("angleLimit") or 66.0))
+        else:
+            bpy.ops.uv.unwrap(method=method, margin=float(params.get("margin") or 0.001))
+        bpy.ops.object.mode_set(mode="OBJECT")
+        return {"object": obj.name, "method": method}
+
+    if operation == "execute_python":
+        if params.get("confirm") is not True:
+            raise RuntimeError("execute_python requires confirm=true")
+        source = params.get("source") or params.get("code") or ""
+        if not isinstance(source, str) or not source:
+            raise RuntimeError("source is required")
+        if len(source.encode("utf-8")) > MAX_EXECUTE_PYTHON_BYTES:
+            raise RuntimeError(f"source exceeds max of {MAX_EXECUTE_PYTHON_BYTES} bytes")
+        # Restricted globals: bpy + common builtins only (no import/open by default in exec locals)
+        safe_builtins = {
+            "abs": abs,
+            "min": min,
+            "max": max,
+            "range": range,
+            "len": len,
+            "enumerate": enumerate,
+            "list": list,
+            "dict": dict,
+            "float": float,
+            "int": int,
+            "str": str,
+            "bool": bool,
+            "True": True,
+            "False": False,
+            "None": None,
+            "print": print,
+        }
+        local_ns = {}
+        exec(source, {"__builtins__": safe_builtins, "bpy": bpy, "bmesh": bmesh}, local_ns)
+        result = local_ns.get("result")
+        return {"executed": True, "result": result if result is None or isinstance(result, (str, int, float, bool, list, dict)) else str(result)}
 
     raise RuntimeError(f"unsupported operation: {operation}")
