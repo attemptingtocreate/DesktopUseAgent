@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "desktopuseagent": {
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "C:\\Users\\Administrator\\AppData\\Local\\DesktopUseAgent\\current\\mcp\\dist\\index.js"
+      ]
+    }
+  }
+}
