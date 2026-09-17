@@ -8,10 +8,10 @@ Executables: `DesktopUseAgent.exe` (Control Center) and `DesktopUseAgent.Agent.e
 
 ## Install / update / sign / release
 
-- `scripts/pack.ps1` publishes win-x64 layout to `artifacts/layout` (`agent`, `control-center`, `mcp`, `plugins`).
-- `scripts/install.ps1` copies layout to `%LOCALAPPDATA%\DesktopUseAgent\current`, writes `install-manifest.json` (path + SHA-256), creates Start Menu shortcut. Works from repo or extracted release zip (`layout/` sibling).
-- `scripts/release.ps1` builds/tests (optional), packs, optionally signs, emits `artifacts/release/DesktopUseAgent-<VERSION>-win-x64.zip` + SHA256.
-- `scripts/configure-cursor.ps1` merge-safe Cursor MCP config (project or user scope).
+- `scripts/pack.ps1` publishes win-x64 layout to `artifacts/layout` (`agent`, `control-center`, `mcp`, `plugins`, Cursor `scripts/configure-cursor.ps1` + skill template + `mcp.json.example`).
+- `scripts/install.ps1` copies layout to `%LOCALAPPDATA%\DesktopUseAgent\current`, writes `install-manifest.json` (path + SHA-256), creates Start Menu shortcut, copies Cursor support files under `current/scripts` / `mcp/cursor-skill`, and **auto-runs** `configure-cursor.ps1 -Scope user` unless `-SkipCursorConfig`. Works from repo or extracted release zip (`layout/` sibling).
+- `scripts/release.ps1` builds/tests (optional), packs, optionally signs, emits `artifacts/release/DesktopUseAgent-<VERSION>-win-x64.zip` + SHA256 (includes configure script, skill template, docs).
+- `scripts/configure-cursor.ps1` merge-safe Cursor MCP config (project or user scope). **Prefer `-Scope user`** for all Cursor workspaces. Installs the `desktopuseagent` skill by default for user scope (`-SkipSkill` / `-InstallSkill` for project). Node 20+ required. Cursor agents need **no** OpenAI/Anthropic API key for Mode B.
 - `scripts/uninstall.ps1` removes install + data folders and Start Menu shortcut.
 - `scripts/sign.ps1` Authenticode-signs layout binaries when `signtool` and `SIGN_THUMBPRINT` or `SIGN_CERT_PATH` are present. Unsigned local builds are expected.
 

@@ -4,6 +4,21 @@ All notable changes to the DesktopUseAgent **product release** are documented he
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- Cursor production readiness (Mode B): `configure-cursor.ps1` skill install (`-InstallSkill` / `-SkipSkill`), Node 20+ check, clear next steps
+- `install.ps1` auto-configures Cursor MCP (`-Scope user`) unless `-SkipCursorConfig`; ships configure script + skill under install root
+- Agent guidance: `AGENTS.md`, `.cursor/rules/desktopuseagent-mcp.mdc`, `.cursor/skills/desktopuseagent/SKILL.md`
+- Control Center Health: **Configure Cursor MCP (user)** runs configure script asynchronously
+
+### Changed
+
+- Docs lead with: Cursor agents need **no** OpenAI/Anthropic API for desktop tools — only DesktopUseAgent + MCP
+- MCP `SERVER_INSTRUCTIONS` address Cursor agents and ChatGPT; `.cursor/mcp.json.example` uses absolute-path placeholders
+- Fix `configure-cursor.ps1` merge for empty/`PSCustomObject` `mcpServers`
+
 ## [0.1.0-preview.1] - 2026-03-16
 
 ### Added

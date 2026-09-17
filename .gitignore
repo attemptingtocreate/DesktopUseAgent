@@ -11,3 +11,7 @@ TestResults/
 artifacts/
 node_modules/
 dist/
+
+# Machine-specific Cursor MCP (keep example, rules, skills tracked)
+.cursor/mcp.json
+.cursor/mcp.json.bak-*

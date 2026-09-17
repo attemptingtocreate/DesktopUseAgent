@@ -61,4 +61,25 @@ if (Test-Path $buildBlenderAddon) {
   }
 }
 Copy-Item (Join-Path $root "VERSION") (Join-Path $out "VERSION") -Force
+
+# Cursor Mode B support (zip-only users can configure without the git repo)
+$scriptsLayout = Join-Path $out "scripts"
+New-Item -ItemType Directory -Path $scriptsLayout -Force | Out-Null
+$configureSrc = Join-Path $PSScriptRoot "configure-cursor.ps1"
+if (Test-Path $configureSrc) {
+  Copy-Item $configureSrc (Join-Path $scriptsLayout "configure-cursor.ps1") -Force
+}
+$skillSrc = Join-Path $root ".cursor\skills\desktopuseagent\SKILL.md"
+if (Test-Path $skillSrc) {
+  $skillOut = Join-Path $out "mcp\cursor-skill"
+  New-Item -ItemType Directory -Path $skillOut -Force | Out-Null
+  Copy-Item $skillSrc (Join-Path $skillOut "SKILL.md") -Force
+}
+$cursorExample = Join-Path $root ".cursor\mcp.json.example"
+if (Test-Path $cursorExample) {
+  $cursorOut = Join-Path $out ".cursor"
+  New-Item -ItemType Directory -Path $cursorOut -Force | Out-Null
+  Copy-Item $cursorExample (Join-Path $cursorOut "mcp.json.example") -Force
+}
+
 Write-Host "Layout written to $out (product version $version, win-x64)"

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
@@ -1106,8 +1107,18 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
 
         ContentHost.Children.Add(Card($"Telemetry: {(_snapshot.TelemetryEnabled ? "enabled (local only)" : "disabled")}"));
 
-        var configureCursor = new Button { Content = "Copy configure-cursor.ps1 command" };
-        configureCursor.Click += (_, _) => CopyText(".\\scripts\\configure-cursor.ps1 -Scope project");
+        var configureCursor = new Button { Content = "Configure Cursor MCP (user)" };
+        configureCursor.Click += async (_, _) => await RunConfigureCursorAsync();
+        var copyConfigure = new Button { Content = "Copy configure command" };
+        copyConfigure.Click += (_, _) =>
+        {
+            var script = ResolveConfigureCursorScriptPath();
+            var cmd = script is null
+                ? ".\\scripts\\configure-cursor.ps1 -Scope user"
+                : $"powershell -NoProfile -ExecutionPolicy Bypass -File \"{script}\" -Scope user";
+            CopyText(cmd);
+            StatusText.Text = "Copied configure-cursor command to clipboard.";
+        };
         var ensureAgent = new Button { Content = "Ensure agent process" };
         ensureAgent.Click += async (_, _) =>
         {
@@ -1124,8 +1135,101 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
         };
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         row.Children.Add(configureCursor);
+        row.Children.Add(copyConfigure);
         row.Children.Add(ensureAgent);
         ContentHost.Children.Add(Wrap(row));
+    }
+
+    private string? ResolveConfigureCursorScriptPath()
+    {
+        var candidates = new List<string>();
+        void Add(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return;
+            candidates.Add(path);
+        }
+
+        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        Add(Path.Combine(local, "DesktopUseAgent", "current", "scripts", "configure-cursor.ps1"));
+
+        if (!string.IsNullOrWhiteSpace(_snapshot.InstallRoot))
+        {
+            Add(Path.Combine(_snapshot.InstallRoot, "scripts", "configure-cursor.ps1"));
+            var parent = Directory.GetParent(_snapshot.InstallRoot)?.FullName;
+            if (parent is not null)
+            {
+                Add(Path.Combine(parent, "configure-cursor.ps1"));
+                Add(Path.Combine(parent, "scripts", "configure-cursor.ps1"));
+            }
+        }
+
+        try
+        {
+            var baseDir = AppContext.BaseDirectory;
+            Add(Path.GetFullPath(Path.Combine(baseDir, "..", "scripts", "configure-cursor.ps1")));
+            Add(Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "..", "scripts", "configure-cursor.ps1")));
+            Add(Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "..", "..", "scripts", "configure-cursor.ps1")));
+        }
+        catch
+        {
+            // ignored
+        }
+
+        foreach (var path in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (File.Exists(path)) return path;
+        }
+
+        return null;
+    }
+
+    private async Task RunConfigureCursorAsync()
+    {
+        var script = ResolveConfigureCursorScriptPath();
+        if (script is null)
+        {
+            StatusText.Text = "configure-cursor.ps1 not found. Reinstall or run from repo scripts/.";
+            return;
+        }
+
+        try
+        {
+            StatusText.Text = "Configuring Cursor MCP (user scope)…";
+            var exitCode = await Task.Run(() =>
+            {
+                using var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "powershell",
+                        Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{script}\" -Scope user",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                    },
+                };
+                process.Start();
+                var stdout = process.StandardOutput.ReadToEndAsync();
+                var stderr = process.StandardError.ReadToEndAsync();
+                if (!process.WaitForExit(120_000))
+                {
+                    try { process.Kill(entireProcessTree: true); } catch { /* ignore */ }
+                    return -1;
+                }
+
+                Task.WaitAll(new Task[] { stdout, stderr }, 5_000);
+                return process.ExitCode;
+            });
+
+            StatusText.Text = exitCode == 0
+                ? "Cursor MCP configured (user scope). Restart Cursor and enable desktopuseagent."
+                : $"configure-cursor.ps1 failed (exit {exitCode}). Check Node 20+ and MCP install.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Cursor MCP configure failed: {ex.Message}";
+        }
     }
 
     private void RenderAdapterHealth(string title, AdapterHealthInfo? health, string setupCommand)

@@ -40,7 +40,7 @@ Copy-Item (Join-Path $PSScriptRoot "install.ps1") $staging
 Copy-Item (Join-Path $PSScriptRoot "uninstall.ps1") $staging
 Copy-Item (Join-Path $PSScriptRoot "configure-cursor.ps1") $staging
 Copy-Item (Join-Path $root "VERSION") $staging
-foreach ($doc in @("README.md", "LICENSE", "NOTICE", "SECURITY.md", "CONTRIBUTING.md", "CHANGELOG.md", "CODE_OF_CONDUCT.md")) {
+foreach ($doc in @("README.md", "LICENSE", "NOTICE", "SECURITY.md", "CONTRIBUTING.md", "CHANGELOG.md", "CODE_OF_CONDUCT.md", "AGENTS.md")) {
   $src = Join-Path $root $doc
   if (Test-Path $src) { Copy-Item $src $staging }
 }
@@ -50,6 +50,7 @@ Get-ChildItem (Join-Path $root "docs") -File | Copy-Item -Destination $docsOut
 $scriptsOut = Join-Path $staging "scripts"
 New-Item -ItemType Directory -Path $scriptsOut -Force | Out-Null
 foreach ($script in @(
+  "configure-cursor.ps1",
   "install-roblox-plugin.ps1",
   "install-blender-addon.ps1",
   "build-roblox-plugin.ps1",
@@ -61,6 +62,15 @@ foreach ($script in @(
 )) {
   $src = Join-Path $PSScriptRoot $script
   if (Test-Path $src) { Copy-Item $src $scriptsOut }
+}
+$skillSrc = Join-Path $root ".cursor\skills\desktopuseagent\SKILL.md"
+if (Test-Path $skillSrc) {
+  $skillStaging = Join-Path $staging ".cursor\skills\desktopuseagent"
+  New-Item -ItemType Directory -Path $skillStaging -Force | Out-Null
+  Copy-Item $skillSrc (Join-Path $skillStaging "SKILL.md") -Force
+  $skillScripts = Join-Path $scriptsOut "cursor-skill"
+  New-Item -ItemType Directory -Path $skillScripts -Force | Out-Null
+  Copy-Item $skillSrc (Join-Path $skillScripts "SKILL.md") -Force
 }
 $cursorExample = Join-Path $root ".cursor\mcp.json.example"
 if (Test-Path $cursorExample) {

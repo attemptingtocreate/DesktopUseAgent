@@ -54,17 +54,19 @@ Start Menu shortcut: **DesktopUseAgent**
 
 ## Cursor setup
 
-Portable, merge-safe MCP configuration:
+**No OpenAI/Anthropic API key** is required for Cursor agents to use desktop tools (Mode B: local MCP → named pipe). Control Center + Windows Agent must be running.
+
+`install.ps1` auto-configures Cursor MCP at **user** scope (all workspaces) unless you pass `-SkipCursorConfig`. Prefer user scope for global availability:
 
 ```powershell
-.\scripts\configure-cursor.ps1 -Scope project   # writes .cursor/mcp.json in this repo
+.\scripts\configure-cursor.ps1 -Scope user   # recommended — also installs the desktopuseagent skill
 # or
-.\scripts\configure-cursor.ps1 -Scope user      # writes %USERPROFILE%\.cursor\mcp.json
+.\scripts\configure-cursor.ps1 -Scope project -InstallSkill
 ```
 
-See [docs/cursor-setup.md](docs/cursor-setup.md) for details and the checked-in [`.cursor/mcp.json.example`](.cursor/mcp.json.example) template.
+See [docs/cursor-setup.md](docs/cursor-setup.md) and [`.cursor/mcp.json.example`](.cursor/mcp.json.example). Restart Cursor, enable **`desktopuseagent`**, open Control Center.
 
-Restart Cursor after configuring MCP. The built-in **desktopuseagent** server exposes semantic desktop tools via stdio → named pipe (`semantic-desktop-agent`).
+Agent guidance: [AGENTS.md](AGENTS.md).
 
 ## ChatGPT (advanced, optional)
 
