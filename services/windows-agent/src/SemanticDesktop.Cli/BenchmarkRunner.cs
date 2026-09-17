@@ -35,6 +35,7 @@ public sealed class BenchmarkRunner
         {
             scenarios.Add(await RunOpenUrlAsync(options, cancellationToken).ConfigureAwait(false));
             scenarios.Add(await RunWindowMoveAsync(options, cancellationToken).ConfigureAwait(false));
+            scenarios.Add(await RunDiscordJoinVoiceAsync(options, cancellationToken).ConfigureAwait(false));
             scenarios.Add(await RunRobloxHierarchyAsync(options, cancellationToken).ConfigureAwait(false));
             scenarios.Add(await RunBlenderComparisonAsync(options, cancellationToken).ConfigureAwait(false));
         }
@@ -53,7 +54,9 @@ public sealed class BenchmarkRunner
         {
             Iterations = Math.Max(1, options.Iterations),
             Monitor = options.Monitor,
-            Url = options.Url
+            Url = options.Url,
+            DiscordChannel = ResolveDiscordChannel(options),
+            DiscordServer = ResolveDiscordServer(options)
         };
 
     private static IReadOnlyList<BenchmarkScenarioResult> BuildScenarioPlan(BenchmarkOptions options)
@@ -71,6 +74,11 @@ public sealed class BenchmarkRunner
         {
             list.Add(Plan("open-url", CommandNames.BrowserOpenTab, iterations, "Opens controlled URL and closes owned tab"));
             list.Add(Plan("window-move-monitor", CommandNames.WindowMove, 1, "Launches Notepad, moves owned window, cleans up process"));
+            list.Add(Plan(
+                "discord-join-voice",
+                CommandNames.DiscordJoinVoice,
+                iterations,
+                "Warm Discord join via Ctrl+K; target p95 ≤ 10s (skipped if Discord unavailable)"));
             list.Add(Plan("studio-hierarchy", CommandNames.RobloxGetHierarchy, 1, "Skipped unless Roblox plugin connected"));
             list.Add(Plan("blender-batch-vs-individual", CommandNames.BlenderBatch, 1, "Skipped unless Blender executable available"));
         }
@@ -261,6 +269,109 @@ public sealed class BenchmarkRunner
                 }
             }
         }
+    }
+
+    private async Task<BenchmarkScenarioResult> RunDiscordJoinVoiceAsync(
+        BenchmarkOptions options,
+        CancellationToken cancellationToken)
+    {
+        const string name = "discord-join-voice";
+        var channel = ResolveDiscordChannel(options);
+        var server = ResolveDiscordServer(options);
+        var iterations = Math.Max(1, options.Iterations);
+        var wall = new List<long>(iterations);
+        var tool = new List<long>(iterations);
+
+        for (var i = 0; i < iterations; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var parameters = new Dictionary<string, object?>
+            {
+                ["channel"] = channel
+            };
+            if (!string.IsNullOrWhiteSpace(server))
+            {
+                parameters["server"] = server;
+            }
+
+            if (options.Monitor >= 0)
+            {
+                parameters["monitor"] = options.Monitor;
+                parameters["placement"] = "maximize";
+            }
+
+            var call = await _client.CallAsync(CommandNames.DiscordJoinVoice, parameters, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!call.Ok && IsUnavailable(call, "Discord.exe not found", "AdapterUnavailable", "not found", "not bound"))
+            {
+                return Skipped(name, CommandNames.DiscordJoinVoice, call.ErrorMessage ?? "Discord not available");
+            }
+
+            if (!call.Ok && i == 0 && IsUnavailable(call, "Timed out", "Timeout", "Failed to launch"))
+            {
+                return Skipped(name, CommandNames.DiscordJoinVoice, call.ErrorMessage ?? "Discord launch/timeout");
+            }
+
+            wall.Add(call.WallMs);
+            if (call.ToolDurationMs is long t)
+            {
+                tool.Add(t);
+            }
+
+            if (!call.Ok)
+            {
+                return BuildResult(
+                    name,
+                    CommandNames.DiscordJoinVoice,
+                    "failed",
+                    call.ErrorMessage,
+                    false,
+                    i + 1,
+                    wall,
+                    tool);
+            }
+        }
+
+        var p95 = wall.Count > 0 ? Percentile(wall, 0.95) : (long?)null;
+        var p50 = wall.Count > 0 ? Percentile(wall, 0.50) : (long?)null;
+        return new BenchmarkScenarioResult
+        {
+            Name = name,
+            Method = CommandNames.DiscordJoinVoice,
+            Status = "completed",
+            SkipReason = p95 is > 10_000
+                ? $"p95 {p95}ms exceeds 10s warm-join budget (channel={channel})"
+                : null,
+            Ok = true,
+            Iterations = iterations,
+            WallMs = wall,
+            ToolDurationMs = tool,
+            P50Ms = p50,
+            P95Ms = p95
+        };
+    }
+
+    private static string ResolveDiscordChannel(BenchmarkOptions options)
+    {
+        if (!string.IsNullOrWhiteSpace(options.DiscordChannel))
+        {
+            return options.DiscordChannel!;
+        }
+
+        var env = Environment.GetEnvironmentVariable("DISCORD_BENCH_CHANNEL");
+        return string.IsNullOrWhiteSpace(env) ? "General" : env.Trim();
+    }
+
+    private static string? ResolveDiscordServer(BenchmarkOptions options)
+    {
+        if (!string.IsNullOrWhiteSpace(options.DiscordServer))
+        {
+            return options.DiscordServer;
+        }
+
+        var env = Environment.GetEnvironmentVariable("DISCORD_BENCH_SERVER");
+        return string.IsNullOrWhiteSpace(env) ? null : env.Trim();
     }
 
     private async Task<BenchmarkScenarioResult> RunRobloxHierarchyAsync(BenchmarkOptions options, CancellationToken cancellationToken)

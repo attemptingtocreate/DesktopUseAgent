@@ -9,6 +9,10 @@ public sealed record BenchmarkOptions
     public int Iterations { get; init; } = 1;
     public int Monitor { get; init; } = 0;
     public string Url { get; init; } = "about:blank";
+    /// <summary>Voice channel name for live discord.join_voice smoke (default from env DISCORD_BENCH_CHANNEL or "General").</summary>
+    public string? DiscordChannel { get; init; }
+    /// <summary>Optional server name for discord.join_voice (env DISCORD_BENCH_SERVER).</summary>
+    public string? DiscordServer { get; init; }
 }
 
 public sealed class BenchmarkSummary
@@ -24,6 +28,8 @@ public sealed class BenchmarkParameters
     public int Iterations { get; init; }
     public int Monitor { get; init; }
     public required string Url { get; init; }
+    public string? DiscordChannel { get; init; }
+    public string? DiscordServer { get; init; }
 }
 
 public sealed class BenchmarkScenarioResult

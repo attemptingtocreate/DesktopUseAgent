@@ -21,6 +21,7 @@ const DOMAIN_LABELS: Record<string, string> = {
   blender: "Blender",
   vscode: "VS Code",
   visualstudio: "Visual Studio",
+  discord: "Discord",
   roblox: "Roblox Studio",
   input: "Input",
   vision: "Vision",
@@ -108,6 +109,9 @@ const DESTRUCTIVE_TOOLS = new Set<ToolName>([
   "blender.import_mesh",
   "vscode.execute_command",
   "visualstudio.build",
+  "discord.open",
+  "discord.join_voice",
+  "discord.quick_switch",
   "roblox.destroy_instance",
   "roblox.set_script_source",
   "roblox.batch",
@@ -166,6 +170,9 @@ const OPEN_WORLD_TOOLS = new Set<ToolName>([
   "blender.execute_python",
   "vscode.execute_command",
   "visualstudio.build",
+  "discord.open",
+  "discord.join_voice",
+  "discord.quick_switch",
 ]);
 
 function buildAnnotations(name: ToolName): ToolMetadataEntry["annotations"] {

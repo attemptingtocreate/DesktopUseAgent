@@ -134,6 +134,36 @@ describe("tool schema validation", () => {
     expect(() => parseToolArgs("window.move", { windowId: "win_1", y: 20 })).toThrow();
   });
 
+  it("accepts discord.join_voice with channel", () => {
+    expect(
+      parseToolArgs("discord.join_voice", { channel: "General", server: "My Server" }),
+    ).toEqual({ channel: "General", server: "My Server" });
+  });
+
+  it("rejects discord.join_voice without channel", () => {
+    expect(() => parseToolArgs("discord.join_voice", { server: "My Server" })).toThrow();
+  });
+
+  it("rejects discord.quick_switch without query or channel", () => {
+    expect(() => parseToolArgs("discord.quick_switch", {})).toThrow();
+  });
+
+  it("accepts vision.capture_window compact params", () => {
+    expect(
+      parseToolArgs("vision.capture_window", {
+        windowId: "win_1",
+        maxWidth: 1280,
+        format: "jpeg",
+        returnBase64: false,
+      }),
+    ).toEqual({
+      windowId: "win_1",
+      maxWidth: 1280,
+      format: "jpeg",
+      returnBase64: false,
+    });
+  });
+
   it("accepts empty object for desktop.get_state", () => {
     expect(parseToolArgs("desktop.get_state", {})).toEqual({});
   });

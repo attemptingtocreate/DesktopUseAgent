@@ -193,6 +193,7 @@ public sealed class PermissionEngine
                 or CommandNames.BlenderSelectGeometry
                 or CommandNames.VsCodeOpenFile or CommandNames.VsCodeOpenFolder or CommandNames.VsCodeExecuteCommand
                 or CommandNames.VisualStudioBuild or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
+                or CommandNames.DiscordOpen or CommandNames.DiscordJoinVoice or CommandNames.DiscordQuickSwitch
                 or CommandNames.RobloxOpenPlace or CommandNames.RobloxSelect or CommandNames.RobloxSetProperty
                 or CommandNames.RobloxCreateInstance or CommandNames.RobloxDestroyInstance or CommandNames.RobloxCloneInstance
                 or CommandNames.RobloxSetParent or CommandNames.RobloxSetScriptSource or CommandNames.RobloxBatch
@@ -257,6 +258,7 @@ public sealed class PermissionEngine
                 or CommandNames.BlenderSelectGeometry
                 or CommandNames.VsCodeOpenFile or CommandNames.VsCodeOpenFolder or CommandNames.VsCodeExecuteCommand
                 or CommandNames.VisualStudioBuild or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
+                or CommandNames.DiscordOpen or CommandNames.DiscordJoinVoice or CommandNames.DiscordQuickSwitch
                 or CommandNames.RobloxOpenPlace or CommandNames.RobloxSelect or CommandNames.RobloxSetProperty
                 or CommandNames.RobloxCreateInstance or CommandNames.RobloxDestroyInstance or CommandNames.RobloxCloneInstance
                 or CommandNames.RobloxSetParent or CommandNames.RobloxSetScriptSource or CommandNames.RobloxBatch

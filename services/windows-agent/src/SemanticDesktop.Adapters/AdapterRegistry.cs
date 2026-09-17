@@ -95,6 +95,7 @@ public sealed class AdapterRegistry
         "visualstudio" => "visualstudio",
         "blender" => "blender",
         "roblox" => "roblox",
+        "discord" => "discord",
         _ => prefix
     };
 }

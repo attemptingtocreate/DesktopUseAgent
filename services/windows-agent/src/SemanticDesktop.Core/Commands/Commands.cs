@@ -199,6 +199,10 @@ public static class CommandNames
     public const string VisualStudioOpenFile = "visualstudio.open_file";
     public const string VisualStudioOpenSolution = "visualstudio.open_solution";
 
+    public const string DiscordOpen = "discord.open";
+    public const string DiscordJoinVoice = "discord.join_voice";
+    public const string DiscordQuickSwitch = "discord.quick_switch";
+
     public const string RobloxOpenPlace = "roblox.open_place";
     public const string RobloxPluginPing = "roblox.plugin_ping";
     public const string RobloxGetHierarchy = "roblox.get_hierarchy";

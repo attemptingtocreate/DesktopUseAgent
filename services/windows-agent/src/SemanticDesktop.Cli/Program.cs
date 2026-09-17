@@ -469,6 +469,12 @@ static BenchmarkOptions ParseBenchmarkOptions(List<string> args)
             case "--url" when i + 1 < args.Count:
                 options = options with { Url = args[++i] };
                 break;
+            case "--discord-channel" when i + 1 < args.Count:
+                options = options with { DiscordChannel = args[++i] };
+                break;
+            case "--discord-server" when i + 1 < args.Count:
+                options = options with { DiscordServer = args[++i] };
+                break;
         }
     }
 
@@ -491,6 +497,7 @@ static void PrintHelp()
           agent
           call <method> [json]
           benchmark [--dry-run] [--live] [--iterations N] [--monitor M] [--url URL]
+                     [--discord-channel NAME] [--discord-server NAME]
           windows
           focus <windowId>
           tree <windowId> [--depth N]

@@ -28,6 +28,33 @@ public class VisionCaptureTests
     }
 
     [Fact]
+    public void ResponseBuilder_Writes_Path_And_Omits_Base64_By_Default()
+    {
+        var vision = new GdiVisionCaptureProvider();
+        var result = vision.CaptureRegion(0, 0, 64, 48, "compact");
+        var payload = VisionCaptureResponseBuilder.Build(result, maxWidth: 32, format: "jpeg", returnBase64: false);
+
+        Assert.True(File.Exists(payload.Path));
+        Assert.Null(payload.PngBase64);
+        Assert.Equal(result.PngBytes.Length, payload.ByteLength);
+        Assert.NotNull(payload.ThumbnailPath);
+        Assert.True(File.Exists(payload.ThumbnailPath));
+        Assert.Equal("image/jpeg", payload.ThumbnailMimeType);
+        Assert.True(payload.ThumbnailWidth <= 32);
+        Assert.True(payload.ThumbnailHeight <= 32);
+    }
+
+    [Fact]
+    public void ResponseBuilder_Includes_Base64_When_Requested()
+    {
+        var vision = new GdiVisionCaptureProvider();
+        var result = vision.CaptureRegion(0, 0, 16, 16, "inline");
+        var payload = VisionCaptureResponseBuilder.Build(result, returnBase64: true);
+        Assert.False(string.IsNullOrWhiteSpace(payload.PngBase64));
+        Assert.Equal(Convert.ToBase64String(result.PngBytes), payload.PngBase64);
+    }
+
+    [Fact]
     public void CaptureScreen_Works_For_Primary_Virtual_Desktop()
     {
         var vision = new GdiVisionCaptureProvider();

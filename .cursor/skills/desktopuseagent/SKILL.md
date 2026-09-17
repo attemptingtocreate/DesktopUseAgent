@@ -29,6 +29,17 @@ If MCP tools are missing: ask the user to run `.\scripts\configure-cursor.ps1 -S
 
 Speed exception: simple “open this URL” may use `process_launch` or `browser_open_tab` immediately.
 
+### Discord (≤10s path)
+
+For “open Discord / join voice call X in server Y”:
+
+1. Call **`discord_join_voice`** once with `{ channel, server?, monitor?, placement? }`.
+2. Do **not** vision-capture Discord, click the server rail, or drive Ctrl+K yourself.
+3. Discord’s UIA tree is empty — `ui_find` / `ui_get_tree` will not help.
+4. Optional: `discord_open` only if you need launch/focus without joining.
+
+Also available: `discord_quick_switch` for generic Ctrl+K navigation.
+
 ## First calls
 
 Typical start:
@@ -36,9 +47,15 @@ Typical start:
 1. `desktop_get_state` — confirm agent + desktop context
 2. Then `window_list` or targeted `ui_*` / `browser_*` for the task
 
+For Discord voice join, skip inspect and call `discord_join_voice` immediately.
+
 ## Permissions
 
-Consequential actions (clicks, writes, launches, `plan_execute`, `desktop_batch`) may need **Control Center approval**. Honor denials; never bypass the agent gate.
+Consequential actions (clicks, writes, launches, `plan_execute`, `desktop_batch`, `discord_join_voice`) may need **Control Center approval**. Honor denials; never bypass the agent gate.
+
+## Vision
+
+`vision_capture_*` returns a **PNG file path** + optional JPEG thumbnail by default (not full `pngBase64`). Set `returnBase64: true` only when you must inline the image.
 
 ## More
 

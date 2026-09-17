@@ -1,6 +1,7 @@
 using System.Text.Json;
 using SemanticDesktop.Adapters;
 using SemanticDesktop.Adapters.Blender;
+using SemanticDesktop.Adapters.Discord;
 using SemanticDesktop.Adapters.RobloxStudio;
 using SemanticDesktop.Adapters.VisualStudio;
 using SemanticDesktop.Adapters.VsCode;
@@ -100,18 +101,20 @@ public class BuiltInAdapterDiscoveryTests
             new BlenderAdapter(),
             new VsCodeAdapter(),
             new VisualStudioAdapter(),
-            new RobloxStudioAdapter(new InMemoryRobloxBridge())
+            new RobloxStudioAdapter(new InMemoryRobloxBridge()),
+            new DiscordAdapter()
         });
 
-        Assert.Equal(new[] { "blender", "roblox", "visualstudio", "vscode" }, registry.ListIds().ToArray());
+        Assert.Equal(new[] { "blender", "discord", "roblox", "visualstudio", "vscode" }, registry.ListIds().ToArray());
         var caps = await registry.ListCapabilitiesAsync(CancellationToken.None);
-        Assert.Equal(4, caps.Count);
+        Assert.Equal(5, caps.Count);
         Assert.Contains(caps, c => c.AdapterId == "roblox" && c.Actions.Contains(CommandNames.RobloxPluginPing));
         Assert.Contains(caps, c => c.AdapterId == "blender" && c.Actions.Contains(CommandNames.BlenderExport));
         Assert.Contains(caps, c => c.AdapterId == "blender" && c.Actions.Contains(CommandNames.BlenderBatch));
         Assert.Contains(caps, c => c.AdapterId == "blender" && c.Meta!.ContainsKey("liveBridgeListening"));
         Assert.Contains(caps, c => c.AdapterId == "vscode" && c.Actions.Contains(CommandNames.VsCodeOpenFile));
         Assert.Contains(caps, c => c.AdapterId == "visualstudio" && c.Actions.Contains(CommandNames.VisualStudioBuild));
+        Assert.Contains(caps, c => c.AdapterId == "discord" && c.Actions.Contains(CommandNames.DiscordJoinVoice));
     }
 
     [Fact]

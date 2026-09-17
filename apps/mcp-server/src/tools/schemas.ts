@@ -817,6 +817,34 @@ export const toolSchemas = {
     .strict(),
   "visualstudio.open_file": z.object({ path: z.string().optional(), file: z.string().optional() }).strict(),
   "visualstudio.open_solution": z.object({ path: z.string().optional(), solution: z.string().optional() }).strict(),
+  "discord.open": z
+    .object({
+      monitor: z.number().int().nonnegative().optional(),
+      placement: z.enum(["preserve", "normal", "maximize"]).optional(),
+      sessionId: z.string().optional(),
+    })
+    .strict(),
+  "discord.join_voice": z
+    .object({
+      channel: z.string().min(1),
+      server: z.string().optional(),
+      monitor: z.number().int().nonnegative().optional(),
+      placement: z.enum(["preserve", "normal", "maximize"]).optional(),
+      sessionId: z.string().optional(),
+    })
+    .strict(),
+  "discord.quick_switch": z
+    .object({
+      query: z.string().min(1).optional(),
+      channel: z.string().min(1).optional(),
+      monitor: z.number().int().nonnegative().optional(),
+      placement: z.enum(["preserve", "normal", "maximize"]).optional(),
+      sessionId: z.string().optional(),
+    })
+    .strict()
+    .refine((v) => Boolean(v.query || v.channel), {
+      message: "query or channel is required",
+    }),
   "roblox.open_place": z
     .object({
       path: z.string().min(1).optional(),
@@ -1146,6 +1174,9 @@ export const toolSchemas = {
       monitor: z.number().int().nonnegative().optional(),
       visionReason: z.string().optional(),
       vision_reason: z.string().optional(),
+      maxWidth: z.number().int().positive().optional(),
+      format: z.enum(["jpeg", "jpg", "png"]).optional(),
+      returnBase64: z.boolean().optional(),
     })
     .strict(),
   "vision.capture_window": z
@@ -1153,6 +1184,9 @@ export const toolSchemas = {
       windowId: z.string().min(1),
       visionReason: z.string().optional(),
       vision_reason: z.string().optional(),
+      maxWidth: z.number().int().positive().optional(),
+      format: z.enum(["jpeg", "jpg", "png"]).optional(),
+      returnBase64: z.boolean().optional(),
     })
     .strict(),
   "vision.capture_region": z
@@ -1163,6 +1197,9 @@ export const toolSchemas = {
       height: z.number().int().positive(),
       visionReason: z.string().optional(),
       vision_reason: z.string().optional(),
+      maxWidth: z.number().int().positive().optional(),
+      format: z.enum(["jpeg", "jpg", "png"]).optional(),
+      returnBase64: z.boolean().optional(),
     })
     .strict(),
 } as const;
@@ -1234,7 +1271,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   "browser.get_downloads": "List recent browser downloads tracked by the agent.",
   "adapter.list": "List application adapters and their availability/actions.",
   "adapter.capabilities": "Get capabilities for one adapter or all adapters.",
-  "adapter.execute": "Execute an application-adapter action (Blender/VS Code/Visual Studio/Roblox Studio).",
+  "adapter.execute": "Execute an application-adapter action (Blender/VS Code/Visual Studio/Roblox Studio/Discord).",
   "blender.open": "Open a .blend file. Default mode background validates headlessly; mode gui launches visible Blender.",
   "blender.get_scene": "Inspect the Blender scene via Python scripting.",
   "blender.get_objects": "List Blender objects via Python scripting.",
@@ -1265,6 +1302,9 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   "visualstudio.build": "Build a solution via MSBuild or devenv.",
   "visualstudio.open_file": "Open a file in Visual Studio (devenv /Edit).",
   "visualstudio.open_solution": "Open a .sln in Visual Studio (devenv).",
+  "discord.open": "Launch or focus Discord; optional monitor/placement.",
+  "discord.join_voice": "Join a Discord voice channel via Ctrl+K quick switch (best-effort title verify).",
+  "discord.quick_switch": "Focus Discord and run Ctrl+K quick switch for a query (no join verify).",
   "roblox.open_place": "Launch Roblox Studio with an absolute .rbxl/.rbxlx place path.",
   "roblox.plugin_ping": "Report Roblox bridge listener and Studio plugin connection state.",
   "roblox.get_hierarchy": "Get a bounded instance hierarchy from the connected Roblox Studio plugin.",
@@ -1295,9 +1335,9 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   "input.key": "Fallback: press/down/up a key via SendInput.",
   "input.hotkey": "Fallback: chord hotkey via SendInput (keys array or '+'-joined).",
   "input.type": "Fallback: type unicode text via SendInput.",
-  "vision.capture_screen": "Capture the virtual desktop or a monitor as PNG (vision fallback; record visionReason).",
-  "vision.capture_window": "Capture a window by id as PNG via PrintWindow/BitBlt (vision fallback).",
-  "vision.capture_region": "Capture a physical screen region as PNG (vision fallback).",
+  "vision.capture_screen": "Capture screen/monitor; returns PNG path + JPEG thumbnail by default (set returnBase64=true for legacy inline).",
+  "vision.capture_window": "Capture a window; returns PNG path + JPEG thumbnail by default (set returnBase64=true for legacy inline).",
+  "vision.capture_region": "Capture a screen region; returns PNG path + JPEG thumbnail by default (set returnBase64=true for legacy inline).",
 };
 
 export function parseToolArgs<T extends ToolName>(

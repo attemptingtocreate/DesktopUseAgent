@@ -115,6 +115,9 @@ public static class ToolCatalog
             ("visualstudio.build", "Build a solution via MSBuild or devenv."),
             ("visualstudio.open_file", "Open a file in Visual Studio (devenv /Edit)."),
             ("visualstudio.open_solution", "Open a .sln in Visual Studio (devenv)."),
+            ("discord.open", "Launch or focus Discord; optional monitor/placement."),
+            ("discord.join_voice", "Join a Discord voice channel via Ctrl+K quick switch (best-effort title verify)."),
+            ("discord.quick_switch", "Focus Discord and run Ctrl+K quick switch for a query (no join verify)."),
             ("roblox.open_place", "Launch Roblox Studio with an absolute .rbxl/.rbxlx place path."),
             ("roblox.plugin_ping", "Report Roblox bridge listener and Studio plugin connection state."),
             ("roblox.get_hierarchy", "Get a bounded instance hierarchy from the connected Roblox Studio plugin."),
@@ -145,9 +148,9 @@ public static class ToolCatalog
             ("input.key", "Fallback: press/down/up a key via SendInput."),
             ("input.hotkey", "Fallback: chord hotkey via SendInput (keys array or '+'-joined)."),
             ("input.type", "Fallback: type unicode text via SendInput."),
-            ("vision.capture_screen", "Capture the virtual desktop or a monitor as PNG (vision fallback; record visionReason)."),
-            ("vision.capture_window", "Capture a window by id as PNG via PrintWindow/BitBlt (vision fallback)."),
-            ("vision.capture_region", "Capture a physical screen region as PNG (vision fallback).")
+            ("vision.capture_screen", "Capture screen/monitor; returns PNG path + JPEG thumbnail by default (set returnBase64=true for legacy inline)."),
+            ("vision.capture_window", "Capture a window; returns PNG path + JPEG thumbnail by default (set returnBase64=true for legacy inline)."),
+            ("vision.capture_region", "Capture a screen region; returns PNG path + JPEG thumbnail by default (set returnBase64=true for legacy inline).")
         ];
 
         return items.Select(i => new AgentToolDefinition

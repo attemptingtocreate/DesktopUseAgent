@@ -18,6 +18,7 @@ public class BenchmarkRunnerTests
         Assert.Contains("\"mode\":\"dry-run\"", json.Replace(" ", ""));
         Assert.Contains("open-url", json);
         Assert.Contains("window-move-monitor", json);
+        Assert.Contains("discord-join-voice", json);
         Assert.Contains("studio-hierarchy", json);
         Assert.Contains("blender-batch-vs-individual", json);
         Assert.Equal(3, summary.Parameters.Iterations);
@@ -55,14 +56,53 @@ public class BenchmarkRunnerTests
         Assert.Contains("not connected", roblox.SkipReason ?? "", StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task LiveRun_SkipsDiscordWhenUnavailable()
+    {
+        var client = new FakeBenchmarkAgentClient { DiscordAvailable = false, RobloxConnected = false };
+        var runner = new BenchmarkRunner(client);
+        var summary = await runner.RunAsync(new BenchmarkOptions { Live = true, Iterations = 1 }, CancellationToken.None);
+
+        var discord = summary.Scenarios.Single(s => s.Name == "discord-join-voice");
+        Assert.Equal("skipped", discord.Status);
+        Assert.Contains("Discord", discord.SkipReason ?? "", StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class FakeBenchmarkAgentClient : IBenchmarkAgentClient
     {
         public int CallCount { get; private set; }
         public bool RobloxConnected { get; init; } = true;
+        public bool DiscordAvailable { get; init; } = true;
 
         public Task<BenchmarkCallResult> CallAsync(string method, object? parameters, CancellationToken cancellationToken)
         {
             CallCount++;
+            if (method == CommandNames.DiscordJoinVoice)
+            {
+                if (!DiscordAvailable)
+                {
+                    return Task.FromResult(new BenchmarkCallResult
+                    {
+                        Ok = false,
+                        WallMs = 2,
+                        ErrorCode = "ADAPTER_UNAVAILABLE",
+                        ErrorMessage = "Discord.exe not found. Set DISCORD_PATH or install Discord."
+                    });
+                }
+
+                return Task.FromResult(new BenchmarkCallResult
+                {
+                    Ok = true,
+                    WallMs = 1200,
+                    ToolDurationMs = 1100,
+                    Raw = JsonSerializer.SerializeToElement(new
+                    {
+                        ok = true,
+                        data = new { joined = true, strategy = "quick_switch", durationMs = 1100 }
+                    }, JsonDefaults.Options)
+                });
+            }
+
             if (method == CommandNames.RobloxPluginPing)
             {
                 var pingJson = JsonSerializer.SerializeToElement(new

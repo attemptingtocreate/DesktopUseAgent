@@ -1,6 +1,7 @@
 using System.Text.Json;
 using SemanticDesktop.Adapters;
 using SemanticDesktop.Adapters.Blender;
+using SemanticDesktop.Adapters.Discord;
 using SemanticDesktop.Adapters.RobloxStudio;
 using SemanticDesktop.Adapters.VisualStudio;
 using SemanticDesktop.Adapters.VsCode;
@@ -50,6 +51,7 @@ public sealed class CommandDispatcher : IDisposable
     private readonly RobloxOpenPlaceCoordinator _robloxOpenPlace;
     private readonly IBlenderBridge _blenderBridge;
     private readonly BlenderAdapter _blenderAdapter;
+    private readonly DiscordAdapter _discordAdapter;
     private readonly InputService _input = new();
     private readonly IVisionCaptureProvider _vision;
     private readonly DesktopGraphService _graph;
@@ -79,12 +81,14 @@ public sealed class CommandDispatcher : IDisposable
         _blenderBridge = new BlenderStudioBridge(new BlenderBridgeOptions { Token = blenderToken });
         _blenderBridge.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
         _blenderAdapter = new BlenderAdapter(_blenderBridge);
+        _discordAdapter = new DiscordAdapter(new DiscordDesktopHost(_windows, _input));
         _adapters = new AdapterRegistry(new IApplicationAdapter[]
         {
             _blenderAdapter,
             new VsCodeAdapter(),
             new VisualStudioAdapter(),
-            _robloxAdapter
+            _robloxAdapter,
+            _discordAdapter
         });
         _adapters.SetProcessResolver((processId, windowId) => _windows.TryResolveProcess(processId, windowId));
         _security = new SecurityContext
@@ -296,6 +300,7 @@ public sealed class CommandDispatcher : IDisposable
                 or CommandNames.VsCodeOpenFile or CommandNames.VsCodeOpenFolder or CommandNames.VsCodeExecuteCommand or CommandNames.VsCodeGetWorkspace
                 or CommandNames.VisualStudioGetSolution or CommandNames.VisualStudioBuild
                 or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
+                or CommandNames.DiscordOpen or CommandNames.DiscordJoinVoice or CommandNames.DiscordQuickSwitch
                 or CommandNames.RobloxOpenPlace or CommandNames.RobloxPluginPing or CommandNames.RobloxGetHierarchy
                 or CommandNames.RobloxGetSelection or CommandNames.RobloxSelect or CommandNames.RobloxSetProperty
                 or CommandNames.RobloxCreateInstance or CommandNames.RobloxDestroyInstance or CommandNames.RobloxCloneInstance
@@ -892,6 +897,9 @@ public sealed class CommandDispatcher : IDisposable
                     CommandNames.VisualStudioBuild,
                     CommandNames.VisualStudioOpenFile,
                     CommandNames.VisualStudioOpenSolution,
+                    CommandNames.DiscordOpen,
+                    CommandNames.DiscordJoinVoice,
+                    CommandNames.DiscordQuickSwitch,
                     CommandNames.RobloxOpenPlace,
                     CommandNames.RobloxPluginPing,
                     CommandNames.RobloxGetHierarchy,
@@ -2261,14 +2269,13 @@ public sealed class CommandDispatcher : IDisposable
             _ => throw new ArgumentException($"Unsupported vision method '{method}'.")
         };
 
+        var maxWidth = GetIntParam(parameters, "maxWidth") ?? VisionCaptureResponseBuilder.DefaultMaxWidth;
+        var format = GetStringParam(parameters, "format") ?? VisionCaptureResponseBuilder.DefaultThumbnailFormat;
+        var returnBase64 = GetBoolParam(parameters, "returnBase64") ?? false;
+        var payload = VisionCaptureResponseBuilder.Build(capture, maxWidth, format, returnBase64);
+
         return ToolResult<object>.Success(
-            new
-            {
-                mimeType = capture.MimeType,
-                pngBase64 = Convert.ToBase64String(capture.PngBytes),
-                byteLength = capture.PngBytes.Length,
-                meta = capture.Meta
-            },
+            payload,
             ResultMeta.Create(requestId, started),
             new PerformanceMeta
             {
