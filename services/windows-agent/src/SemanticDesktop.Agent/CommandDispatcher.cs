@@ -2,6 +2,7 @@ using System.Text.Json;
 using SemanticDesktop.Adapters;
 using SemanticDesktop.Adapters.Blender;
 using SemanticDesktop.Adapters.Discord;
+using SemanticDesktop.Adapters.Office;
 using SemanticDesktop.Adapters.RobloxStudio;
 using SemanticDesktop.Adapters.VisualStudio;
 using SemanticDesktop.Adapters.VsCode;
@@ -25,9 +26,16 @@ using SemanticDesktop.Files;
 using SemanticDesktop.IPC;
 using SemanticDesktop.Permissions;
 using SemanticDesktop.UIA.Automation;
+using SemanticDesktop.Win32.Apps;
+using SemanticDesktop.Win32.Clipboard;
+using SemanticDesktop.Win32.Files;
 using SemanticDesktop.Win32.Input;
+using SemanticDesktop.Win32.Media;
 using SemanticDesktop.Win32.Monitors;
+using SemanticDesktop.Win32.Power;
 using SemanticDesktop.Win32.Processes;
+using SemanticDesktop.Win32.Search;
+using SemanticDesktop.Win32.Shell;
 using SemanticDesktop.Win32.Vision;
 using SemanticDesktop.Win32.Windows;
 
@@ -39,6 +47,7 @@ public sealed class CommandDispatcher : IDisposable
     private readonly MonitorService _monitors;
     private readonly WindowService _windows;
     private readonly ProcessService _processes;
+    private readonly AppLauncher _appLauncher;
     private readonly UIAutomationService _uia;
     private readonly FileService _files = new();
     private readonly BrowserService _browser;
@@ -52,6 +61,7 @@ public sealed class CommandDispatcher : IDisposable
     private readonly IBlenderBridge _blenderBridge;
     private readonly BlenderAdapter _blenderAdapter;
     private readonly DiscordAdapter _discordAdapter;
+    private readonly OfficeAdapter _officeAdapter;
     private readonly InputService _input = new();
     private readonly IVisionCaptureProvider _vision;
     private readonly DesktopGraphService _graph;
@@ -67,6 +77,7 @@ public sealed class CommandDispatcher : IDisposable
         _windows = new WindowService(_handles, _monitors);
         _vision = new GdiVisionCaptureProvider(_monitors);
         _processes = new ProcessService(_handles);
+        _appLauncher = new AppLauncher(_windows);
         _uia = new UIAutomationService(_handles, _windows);
         _browser = new BrowserService(_handles);
         _graph = new DesktopGraphService(_windows, _uia);
@@ -82,13 +93,15 @@ public sealed class CommandDispatcher : IDisposable
         _blenderBridge.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
         _blenderAdapter = new BlenderAdapter(_blenderBridge);
         _discordAdapter = new DiscordAdapter(new DiscordDesktopHost(_windows, _input));
+        _officeAdapter = new OfficeAdapter();
         _adapters = new AdapterRegistry(new IApplicationAdapter[]
         {
             _blenderAdapter,
             new VsCodeAdapter(),
             new VisualStudioAdapter(),
             _robloxAdapter,
-            _discordAdapter
+            _discordAdapter,
+            _officeAdapter
         });
         _adapters.SetProcessResolver((processId, windowId) => _windows.TryResolveProcess(processId, windowId));
         _security = new SecurityContext
@@ -252,10 +265,20 @@ public sealed class CommandDispatcher : IDisposable
             CommandNames.UiSetValue => await UiSetValueAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
             CommandNames.UiGetText => await UiGetTextAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
             CommandNames.ProcessLaunch => await ProcessLaunchAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
+            CommandNames.AppLaunch => await AppLaunchAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
+            CommandNames.ShellOpen => ShellOpen(requestId, started, request.Params),
+            CommandNames.ClipboardRead => ClipboardRead(requestId, started),
+            CommandNames.ClipboardWrite => ClipboardWrite(requestId, started, request.Params),
             CommandNames.FilesystemWriteText => await FilesystemWriteTextAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
             CommandNames.FilesystemExists => await FilesystemExistsAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
             CommandNames.FilesystemList => await FilesystemListAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
             CommandNames.FilesystemReadText => await FilesystemReadTextAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
+            CommandNames.FilesystemCopy => await FilesystemCopyAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
+            CommandNames.FilesystemMove => await FilesystemMoveAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
+            CommandNames.FilesystemDelete => await FilesystemDeleteAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
+            CommandNames.FilesystemOpen => FilesystemOpen(requestId, started, request.Params),
+            CommandNames.SystemPower => SystemPower(requestId, started, request.Params),
+            CommandNames.SearchFiles => SearchFiles(requestId, started, request.Params, cancellationToken),
             CommandNames.ProcessList => await ProcessListAsync(requestId, started, cancellationToken).ConfigureAwait(false),
             CommandNames.DesktopGetState => await DesktopGetStateAsync(requestId, started, cancellationToken).ConfigureAwait(false),
             CommandNames.DesktopGetCapabilities => DesktopGetCapabilities(requestId, started),
@@ -301,6 +324,7 @@ public sealed class CommandDispatcher : IDisposable
                 or CommandNames.VisualStudioGetSolution or CommandNames.VisualStudioBuild
                 or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
                 or CommandNames.DiscordOpen or CommandNames.DiscordJoinVoice or CommandNames.DiscordQuickSwitch
+                or CommandNames.OfficeOpen or CommandNames.OfficeMailCompose or CommandNames.OfficeCalendarWeek
                 or CommandNames.RobloxOpenPlace or CommandNames.RobloxPluginPing or CommandNames.RobloxGetHierarchy
                 or CommandNames.RobloxGetSelection or CommandNames.RobloxSelect or CommandNames.RobloxSetProperty
                 or CommandNames.RobloxCreateInstance or CommandNames.RobloxDestroyInstance or CommandNames.RobloxCloneInstance
@@ -314,8 +338,12 @@ public sealed class CommandDispatcher : IDisposable
             CommandNames.InputMouseMove or CommandNames.InputMouseClick or CommandNames.InputMouseDrag
                 or CommandNames.InputScroll or CommandNames.InputKey or CommandNames.InputHotkey or CommandNames.InputType
                 => InputDispatch(request.Method, requestId, started, request.Params),
+            CommandNames.MediaTransport or CommandNames.MediaVolume
+                => MediaDispatch(request.Method, requestId, started, request.Params),
             CommandNames.VisionCaptureScreen or CommandNames.VisionCaptureWindow or CommandNames.VisionCaptureRegion
                 => VisionDispatch(request.Method, requestId, started, request.Params),
+            CommandNames.VisionOcr
+                => await VisionOcrAsync(requestId, started, request.Params, cancellationToken).ConfigureAwait(false),
             CommandNames.SystemUpdateCheck => SystemUpdateCheck(requestId, started, request.Params),
             CommandNames.SystemUpdateApply => SystemUpdateApply(requestId, started, request.Params),
             CommandNames.SystemTelemetryGet => SystemTelemetryGet(requestId, started),
@@ -706,6 +734,190 @@ public sealed class CommandDispatcher : IDisposable
             stateChanged: true);
     }
 
+    private async Task<object> AppLaunchAsync(string requestId, DateTimeOffset started, JsonElement? parameters, CancellationToken ct)
+    {
+        var name = GetStringParam(parameters, "name");
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("name is required.");
+        }
+
+        var args = GetStringListOptional(parameters, "args");
+        var monitor = GetIntParam(parameters, "monitor");
+        var placement = GetStringParam(parameters, "placement");
+        var data = await _appLauncher.LaunchAsync(new AppLaunchRequest
+        {
+            Name = name,
+            Args = args?.ToArray(),
+            Monitor = monitor,
+            Placement = placement
+        }, ct).ConfigureAwait(false);
+
+        return ToolResult<object>.Success(
+            data,
+            ResultMeta.Create(requestId, started),
+            BuildPerformance(CommandNames.AppLaunch, started, provider: "Win32"),
+            stateChanged: true);
+    }
+
+    private object ShellOpen(string requestId, DateTimeOffset started, JsonElement? parameters)
+    {
+        var target = GetStringParam(parameters, "target");
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            throw new ArgumentException("target is required.");
+        }
+
+        var args = GetStringListOptional(parameters, "args");
+        var data = ShellOpenService.Open(target, args?.ToArray());
+        return ToolResult<object>.Success(
+            data,
+            ResultMeta.Create(requestId, started),
+            BuildPerformance(CommandNames.ShellOpen, started, provider: "Win32"),
+            stateChanged: true);
+    }
+
+    private object ClipboardRead(string requestId, DateTimeOffset started)
+    {
+        var data = ClipboardService.Read();
+        return ToolResult<object>.Success(
+            data,
+            ResultMeta.Create(requestId, started),
+            BuildPerformance(CommandNames.ClipboardRead, started, provider: "Win32"));
+    }
+
+    private object ClipboardWrite(string requestId, DateTimeOffset started, JsonElement? parameters)
+    {
+        var text = GetStringParam(parameters, "text");
+        if (text is null)
+        {
+            throw new ArgumentException("text is required.");
+        }
+
+        var data = ClipboardService.Write(text);
+        return ToolResult<object>.Success(
+            data,
+            ResultMeta.Create(requestId, started),
+            BuildPerformance(CommandNames.ClipboardWrite, started, provider: "Win32"),
+            stateChanged: true);
+    }
+
+    private object SystemPower(string requestId, DateTimeOffset started, JsonElement? parameters)
+    {
+        var action = GetStringParam(parameters, "action");
+        if (string.IsNullOrWhiteSpace(action))
+        {
+            throw new ArgumentException("action is required.");
+        }
+
+        var confirm = GetBoolParam(parameters, "confirm") == true;
+        var data = PowerService.Execute(action, confirm);
+        return ToolResult<object>.Success(
+            data,
+            ResultMeta.Create(requestId, started),
+            BuildPerformance(CommandNames.SystemPower, started, provider: "Win32"),
+            stateChanged: true);
+    }
+
+    private object SearchFiles(string requestId, DateTimeOffset started, JsonElement? parameters, CancellationToken ct)
+    {
+        var query = GetStringParam(parameters, "query");
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            throw new ArgumentException("query is required.");
+        }
+
+        var roots = GetStringListOptional(parameters, "roots");
+        var extensions = GetStringListOptional(parameters, "extensions");
+        var maxResults = GetIntParam(parameters, "maxResults") ?? 25;
+        var data = FileSearchService.Search(new FileSearchRequest
+        {
+            Query = query,
+            Roots = roots?.ToArray(),
+            Extensions = extensions?.ToArray(),
+            MaxResults = maxResults
+        }, ct);
+
+        return ToolResult<object>.Success(
+            data,
+            ResultMeta.Create(requestId, started),
+            BuildPerformance(CommandNames.SearchFiles, started, provider: "Win32"));
+    }
+
+    private async Task<object> FilesystemCopyAsync(string requestId, DateTimeOffset started, JsonElement? parameters, CancellationToken ct)
+    {
+        var source = GetStringParam(parameters, "source") ?? "";
+        var destination = GetStringParam(parameters, "destination") ?? "";
+        var overwrite = GetBoolParam(parameters, "overwrite") == true;
+        var result = await _files.CopyAsync(source, destination, overwrite, ct).ConfigureAwait(false);
+        if (!result.Ok)
+        {
+            return ToolResult<object>.Failure(result.Error!, ResultMeta.Create(requestId, started), result.Performance);
+        }
+
+        return ToolResult<object>.Success(result.Data!, ResultMeta.Create(requestId, started), result.Performance, result.StateChanged);
+    }
+
+    private async Task<object> FilesystemMoveAsync(string requestId, DateTimeOffset started, JsonElement? parameters, CancellationToken ct)
+    {
+        var source = GetStringParam(parameters, "source") ?? "";
+        var destination = GetStringParam(parameters, "destination") ?? "";
+        var result = await _files.MoveAsync(source, destination, ct).ConfigureAwait(false);
+        if (!result.Ok)
+        {
+            return ToolResult<object>.Failure(result.Error!, ResultMeta.Create(requestId, started), result.Performance);
+        }
+
+        return ToolResult<object>.Success(result.Data!, ResultMeta.Create(requestId, started), result.Performance, result.StateChanged);
+    }
+
+    private async Task<object> FilesystemDeleteAsync(string requestId, DateTimeOffset started, JsonElement? parameters, CancellationToken ct)
+    {
+        var path = GetStringParam(parameters, "path") ?? "";
+        var recycle = GetBoolParam(parameters, "recycle") != false;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new ArgumentException("path is required.");
+        }
+
+        var full = Path.GetFullPath(path);
+        if (recycle)
+        {
+            ShellFileOperations.Recycle(full);
+            return ToolResult<object>.Success(
+                new { deleted = true, path = full, recycle = true },
+                ResultMeta.Create(requestId, started),
+                BuildPerformance(CommandNames.FilesystemDelete, started, provider: "Shell"),
+                stateChanged: true);
+        }
+
+        var result = await _files.DeleteHardAsync(full, ct).ConfigureAwait(false);
+        if (!result.Ok)
+        {
+            return ToolResult<object>.Failure(result.Error!, ResultMeta.Create(requestId, started), result.Performance);
+        }
+
+        return ToolResult<object>.Success(result.Data!, ResultMeta.Create(requestId, started), result.Performance, result.StateChanged);
+    }
+
+    private object FilesystemOpen(string requestId, DateTimeOffset started, JsonElement? parameters)
+    {
+        var path = GetStringParam(parameters, "path");
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new ArgumentException("path is required.");
+        }
+
+        var select = GetBoolParam(parameters, "select") == true;
+        var full = Path.GetFullPath(path);
+        ShellFileOperations.OpenPath(full, select);
+        return ToolResult<object>.Success(
+            new { opened = true, path = full, select },
+            ResultMeta.Create(requestId, started),
+            BuildPerformance(CommandNames.FilesystemOpen, started, provider: "Shell"),
+            stateChanged: true);
+    }
+
     private async Task<object> FilesystemWriteTextAsync(string requestId, DateTimeOffset started, JsonElement? parameters, CancellationToken ct)
     {
         var path = parameters is null ? null : GetString(parameters.Value, "path");
@@ -808,7 +1020,9 @@ public sealed class CommandDispatcher : IDisposable
                 browser = new { chrome, edge, firefox = false },
                 shell = false,
                 vision = true,
+                ocr = WindowsOcrService.IsAvailable(),
                 input = true,
+                media = true,
                 plans = true,
                 permissions = true,
                 audit = true,
@@ -819,6 +1033,8 @@ public sealed class CommandDispatcher : IDisposable
                     "adapters",
                     "input",
                     "vision",
+                    "ocr",
+                    "media",
                     "graph",
                     "workflow",
                     "hardening"
@@ -855,12 +1071,22 @@ public sealed class CommandDispatcher : IDisposable
                     CommandNames.UiWaitFor,
                     CommandNames.ProcessList,
                     CommandNames.ProcessLaunch,
+                    CommandNames.AppLaunch,
+                    CommandNames.ShellOpen,
+                    CommandNames.ClipboardRead,
+                    CommandNames.ClipboardWrite,
                     CommandNames.FilesystemList,
                     CommandNames.FilesystemReadText,
                     CommandNames.FilesystemWriteText,
                     CommandNames.FilesystemExists,
                     CommandNames.FilesystemStat,
                     CommandNames.FilesystemInspect,
+                    CommandNames.FilesystemCopy,
+                    CommandNames.FilesystemMove,
+                    CommandNames.FilesystemDelete,
+                    CommandNames.FilesystemOpen,
+                    CommandNames.SearchFiles,
+                    CommandNames.SystemPower,
                     CommandNames.PlanExecute,
                     CommandNames.PlanCancel,
                     CommandNames.SystemEmergencyStop,
@@ -900,6 +1126,11 @@ public sealed class CommandDispatcher : IDisposable
                     CommandNames.DiscordOpen,
                     CommandNames.DiscordJoinVoice,
                     CommandNames.DiscordQuickSwitch,
+                    CommandNames.OfficeOpen,
+                    CommandNames.OfficeMailCompose,
+                    CommandNames.OfficeCalendarWeek,
+                    CommandNames.MediaTransport,
+                    CommandNames.MediaVolume,
                     CommandNames.RobloxOpenPlace,
                     CommandNames.RobloxPluginPing,
                     CommandNames.RobloxGetHierarchy,
@@ -933,6 +1164,7 @@ public sealed class CommandDispatcher : IDisposable
                     CommandNames.VisionCaptureScreen,
                     CommandNames.VisionCaptureWindow,
                     CommandNames.VisionCaptureRegion,
+                    CommandNames.VisionOcr,
                     CommandNames.BrowserList,
                     CommandNames.BrowserTabs,
                     CommandNames.BrowserGetTab,
@@ -2250,6 +2482,31 @@ public sealed class CommandDispatcher : IDisposable
             stateChanged: true);
     }
 
+    private object MediaDispatch(string method, string requestId, DateTimeOffset started, JsonElement? parameters)
+    {
+        object payload = method switch
+        {
+            CommandNames.MediaTransport => MediaService.Transport(RequireString(parameters, "action")),
+            CommandNames.MediaVolume => MediaService.Volume(
+                RequireString(parameters, "action"),
+                GetIntParam(parameters, "level")),
+            _ => throw new ArgumentException($"Unsupported media method '{method}'.")
+        };
+
+        return ToolResult<object>.Success(
+            payload,
+            ResultMeta.Create(requestId, started),
+            new PerformanceMeta
+            {
+                Operation = method,
+                DurationMs = Elapsed(started),
+                ElementsInspected = 0,
+                CacheHit = false,
+                Provider = MediaService.Provider
+            },
+            stateChanged: true);
+    }
+
     private object VisionDispatch(string method, string requestId, DateTimeOffset started, JsonElement? parameters)
     {
         var reason = GetStringParam(parameters, "visionReason")
@@ -2285,6 +2542,113 @@ public sealed class CommandDispatcher : IDisposable
                 CacheHit = false,
                 Provider = capture.Meta.Provider,
                 VisionReason = capture.Meta.VisionReason
+            });
+    }
+
+    private async Task<object> VisionOcrAsync(string requestId, DateTimeOffset started, JsonElement? parameters, CancellationToken ct)
+    {
+        var language = GetStringParam(parameters, "language");
+        var path = GetStringParam(parameters, "path");
+        var windowId = GetStringParam(parameters, "windowId");
+        var monitor = GetIntParam(parameters, "monitor");
+
+        JsonElement? region = null;
+        if (parameters is JsonElement root &&
+            root.ValueKind == JsonValueKind.Object &&
+            root.TryGetProperty("region", out var regionEl) &&
+            regionEl.ValueKind == JsonValueKind.Object)
+        {
+            region = regionEl;
+        }
+
+        var hasFlatRegion = GetIntParam(parameters, "x") is not null &&
+                            GetIntParam(parameters, "y") is not null &&
+                            GetIntParam(parameters, "width") is not null &&
+                            GetIntParam(parameters, "height") is not null;
+        var hasRegion = region is not null || hasFlatRegion;
+
+        var sourceCount = (string.IsNullOrWhiteSpace(path) ? 0 : 1)
+                          + (string.IsNullOrWhiteSpace(windowId) ? 0 : 1)
+                          + (monitor is null ? 0 : 1)
+                          + (hasRegion ? 1 : 0);
+
+        if (sourceCount != 1)
+        {
+            throw new ArgumentException(
+                $"{ErrorCodes.InvalidArgument}: exactly one of windowId, monitor, region (or x/y/width/height), or path is required.");
+        }
+
+        byte[] pngBytes;
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            var full = Path.GetFullPath(path);
+            if (!File.Exists(full))
+            {
+                throw new ArgumentException($"{ErrorCodes.NotFound}: image path '{full}' not found.");
+            }
+
+            pngBytes = await File.ReadAllBytesAsync(full, ct).ConfigureAwait(false);
+        }
+        else
+        {
+            VisionCaptureResult capture;
+            if (!string.IsNullOrWhiteSpace(windowId))
+            {
+                capture = CaptureWindow(windowId, "vision.ocr");
+            }
+            else if (monitor is not null)
+            {
+                capture = _vision.CaptureScreen(monitor, "vision.ocr");
+            }
+            else if (region is not null)
+            {
+                capture = _vision.CaptureRegion(
+                    RequireInt(region, "x"),
+                    RequireInt(region, "y"),
+                    RequireInt(region, "width"),
+                    RequireInt(region, "height"),
+                    "vision.ocr");
+            }
+            else
+            {
+                capture = _vision.CaptureRegion(
+                    RequireInt(parameters, "x"),
+                    RequireInt(parameters, "y"),
+                    RequireInt(parameters, "width"),
+                    RequireInt(parameters, "height"),
+                    "vision.ocr");
+            }
+
+            pngBytes = capture.PngBytes;
+        }
+
+        var ocr = await WindowsOcrService.RecognizePngAsync(pngBytes, language, ct).ConfigureAwait(false);
+        var payload = new
+        {
+            lines = ocr.Lines.Select(l => new
+            {
+                text = l.Text,
+                confidence = l.Confidence,
+                bounds = l.Bounds is null
+                    ? null
+                    : new { x = l.Bounds.X, y = l.Bounds.Y, width = l.Bounds.Width, height = l.Bounds.Height }
+            }).ToArray(),
+            text = ocr.Text,
+            durationMs = ocr.DurationMs,
+            provider = ocr.Provider,
+            language = ocr.Language
+        };
+
+        return ToolResult<object>.Success(
+            payload,
+            ResultMeta.Create(requestId, started),
+            new PerformanceMeta
+            {
+                Operation = CommandNames.VisionOcr,
+                DurationMs = Elapsed(started),
+                ElementsInspected = ocr.Lines.Count,
+                CacheHit = false,
+                Provider = ocr.Provider
             });
     }
 

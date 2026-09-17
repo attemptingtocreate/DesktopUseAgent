@@ -84,6 +84,65 @@ public class PermissionEngineTests
     }
 
     [Fact]
+    public void ShellOpen_IsAsk_ShellExecute()
+    {
+        var engine = new PermissionEngine();
+        var session = new AgentSession { SessionId = "s1", ClientId = "t" };
+        var result = engine.Evaluate(session, CommandNames.ShellOpen);
+        Assert.Equal(PermissionDecisionKind.Ask, result.Decision);
+        Assert.Equal(Capabilities.ShellExecute, result.Capability);
+        Assert.Equal(RiskClass.LowRiskWrite, result.Risk);
+    }
+
+    [Fact]
+    public void ClipboardRead_IsAllow_ClipboardWrite_IsAsk()
+    {
+        var engine = new PermissionEngine();
+        var session = new AgentSession { SessionId = "s1", ClientId = "t" };
+        var read = engine.Evaluate(session, CommandNames.ClipboardRead);
+        Assert.Equal(PermissionDecisionKind.Allow, read.Decision);
+        Assert.Equal(RiskClass.Read, read.Risk);
+
+        var write = engine.Evaluate(session, CommandNames.ClipboardWrite);
+        Assert.Equal(PermissionDecisionKind.Ask, write.Decision);
+        Assert.Equal(Capabilities.ClipboardWrite, write.Capability);
+    }
+
+    [Fact]
+    public void FilesystemDelete_IsDestructiveAsk()
+    {
+        var engine = new PermissionEngine();
+        var session = new AgentSession { SessionId = "s1", ClientId = "t" };
+        var path = Path.Combine(@"C:\SemanticDesktopUnscoped", "sd-del-test.txt");
+        var result = engine.Evaluate(session, CommandNames.FilesystemDelete, path);
+        Assert.Equal(PermissionDecisionKind.Ask, result.Decision);
+        Assert.Equal(Capabilities.FilesystemDelete, result.Capability);
+        Assert.Equal(RiskClass.Destructive, result.Risk);
+    }
+
+    [Fact]
+    public void SystemPower_IsAskPrivileged()
+    {
+        var engine = new PermissionEngine();
+        var session = new AgentSession { SessionId = "s1", ClientId = "t" };
+        var result = engine.Evaluate(session, CommandNames.SystemPower);
+        Assert.Equal(PermissionDecisionKind.Ask, result.Decision);
+        Assert.Equal(Capabilities.SystemPower, result.Capability);
+        Assert.Equal(RiskClass.Privileged, result.Risk);
+    }
+
+    [Fact]
+    public void SearchFiles_IsAllowRead()
+    {
+        var engine = new PermissionEngine();
+        var session = new AgentSession { SessionId = "s1", ClientId = "t" };
+        var result = engine.Evaluate(session, CommandNames.SearchFiles);
+        Assert.Equal(PermissionDecisionKind.Allow, result.Decision);
+        Assert.Equal(Capabilities.FilesystemRead, result.Capability);
+        Assert.Equal(RiskClass.Read, result.Risk);
+    }
+
+    [Fact]
     public void SessionGrant_AllowsPreviouslyAskCapability()
     {
         var engine = new PermissionEngine();
@@ -116,6 +175,38 @@ public class EmergencyStopTests
         Assert.True(gate.IsStopped);
         gate.Clear();
         Assert.False(gate.IsStopped);
+    }
+
+    [Fact]
+    public void VisionOcr_IsAsk_VisionCapture()
+    {
+        var engine = new PermissionEngine();
+        var session = new AgentSession { SessionId = "s1", ClientId = "t" };
+        var result = engine.Evaluate(session, CommandNames.VisionOcr);
+        Assert.Equal(PermissionDecisionKind.Ask, result.Decision);
+        Assert.Equal(Capabilities.VisionCapture, result.Capability);
+        Assert.Equal(RiskClass.Read, result.Risk);
+    }
+
+    [Fact]
+    public void MediaTransport_IsAsk_InputKeyboard_LowRisk()
+    {
+        var engine = new PermissionEngine();
+        var session = new AgentSession { SessionId = "s1", ClientId = "t" };
+        var result = engine.Evaluate(session, CommandNames.MediaTransport);
+        Assert.Equal(PermissionDecisionKind.Ask, result.Decision);
+        Assert.Equal(Capabilities.InputKeyboard, result.Capability);
+        Assert.Equal(RiskClass.LowRiskWrite, result.Risk);
+    }
+
+    [Fact]
+    public void OfficeMailCompose_IsAsk_AdapterInteract()
+    {
+        var engine = new PermissionEngine();
+        var session = new AgentSession { SessionId = "s1", ClientId = "t" };
+        var result = engine.Evaluate(session, CommandNames.OfficeMailCompose);
+        Assert.Equal(PermissionDecisionKind.Ask, result.Decision);
+        Assert.Equal(Capabilities.AdapterInteract, result.Capability);
     }
 }
 

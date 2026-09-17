@@ -176,6 +176,9 @@ internal sealed class SecurityContext
             CommandNames.BlenderImportMesh => GetString(parameters, "saveAs"),
             CommandNames.BlenderOpen => GetString(parameters, "path") ?? GetString(parameters, "file"),
             CommandNames.AdapterExecute => ExtractAdapterExecutePath(parameters),
+            CommandNames.FilesystemCopy or CommandNames.FilesystemMove =>
+                GetString(parameters, "destination") ?? GetString(parameters, "path"),
+            CommandNames.ShellOpen => GetString(parameters, "target"),
             _ => GetString(parameters, "path")
         };
 

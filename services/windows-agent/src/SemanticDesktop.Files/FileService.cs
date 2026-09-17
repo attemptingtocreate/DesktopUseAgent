@@ -270,6 +270,180 @@ public sealed class FileService
         }
     }
 
+    public Task<ToolResult<object>> CopyAsync(
+        string source,
+        string destination,
+        bool overwrite,
+        CancellationToken cancellationToken)
+    {
+        var started = DateTimeOffset.UtcNow;
+        var requestId = Guid.NewGuid().ToString("N");
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(destination))
+            {
+                return Task.FromResult(ToolResult<object>.Failure(
+                    new ErrorInfo { Code = ErrorCodes.InvalidArgument, Message = "source and destination are required.", Retryable = false },
+                    ResultMeta.Create(requestId, started)));
+            }
+
+            var src = Path.GetFullPath(source);
+            var dest = Path.GetFullPath(destination);
+            if (Directory.Exists(src))
+            {
+                CopyDirectory(src, dest, overwrite);
+            }
+            else if (File.Exists(src))
+            {
+                var destDir = Path.GetDirectoryName(dest);
+                if (!string.IsNullOrWhiteSpace(destDir))
+                {
+                    Directory.CreateDirectory(destDir);
+                }
+
+                File.Copy(src, dest, overwrite);
+            }
+            else
+            {
+                return Task.FromResult(ToolResult<object>.Failure(
+                    new ErrorInfo { Code = ErrorCodes.NotFound, Message = $"Source not found: {src}", Retryable = false },
+                    ResultMeta.Create(requestId, started)));
+            }
+
+            return Task.FromResult(ToolResult<object>.Success(
+                new { copied = true, source = src, destination = dest, overwrite },
+                ResultMeta.Create(requestId, started),
+                new PerformanceMeta
+                {
+                    Operation = CommandNames.FilesystemCopy,
+                    DurationMs = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds,
+                    ElementsInspected = 1,
+                    CacheHit = false,
+                    Provider = "Filesystem"
+                },
+                stateChanged: true));
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult(ToolResult<object>.Failure(
+                new ErrorInfo { Code = ErrorCodes.Internal, Message = ex.Message, Retryable = false },
+                ResultMeta.Create(requestId, started)));
+        }
+    }
+
+    public Task<ToolResult<object>> MoveAsync(
+        string source,
+        string destination,
+        CancellationToken cancellationToken)
+    {
+        var started = DateTimeOffset.UtcNow;
+        var requestId = Guid.NewGuid().ToString("N");
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(destination))
+            {
+                return Task.FromResult(ToolResult<object>.Failure(
+                    new ErrorInfo { Code = ErrorCodes.InvalidArgument, Message = "source and destination are required.", Retryable = false },
+                    ResultMeta.Create(requestId, started)));
+            }
+
+            var src = Path.GetFullPath(source);
+            var dest = Path.GetFullPath(destination);
+            var destDir = Path.GetDirectoryName(dest);
+            if (!string.IsNullOrWhiteSpace(destDir))
+            {
+                Directory.CreateDirectory(destDir);
+            }
+
+            if (Directory.Exists(src))
+            {
+                Directory.Move(src, dest);
+            }
+            else if (File.Exists(src))
+            {
+                File.Move(src, dest, overwrite: true);
+            }
+            else
+            {
+                return Task.FromResult(ToolResult<object>.Failure(
+                    new ErrorInfo { Code = ErrorCodes.NotFound, Message = $"Source not found: {src}", Retryable = false },
+                    ResultMeta.Create(requestId, started)));
+            }
+
+            return Task.FromResult(ToolResult<object>.Success(
+                new { moved = true, source = src, destination = dest },
+                ResultMeta.Create(requestId, started),
+                new PerformanceMeta
+                {
+                    Operation = CommandNames.FilesystemMove,
+                    DurationMs = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds,
+                    ElementsInspected = 1,
+                    CacheHit = false,
+                    Provider = "Filesystem"
+                },
+                stateChanged: true));
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult(ToolResult<object>.Failure(
+                new ErrorInfo { Code = ErrorCodes.Internal, Message = ex.Message, Retryable = false },
+                ResultMeta.Create(requestId, started)));
+        }
+    }
+
+    public Task<ToolResult<object>> DeleteHardAsync(string path, CancellationToken cancellationToken)
+    {
+        var started = DateTimeOffset.UtcNow;
+        var requestId = Guid.NewGuid().ToString("N");
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return Task.FromResult(ToolResult<object>.Failure(
+                    new ErrorInfo { Code = ErrorCodes.InvalidArgument, Message = "path is required.", Retryable = false },
+                    ResultMeta.Create(requestId, started)));
+            }
+
+            var full = Path.GetFullPath(path);
+            if (Directory.Exists(full))
+            {
+                Directory.Delete(full, recursive: true);
+            }
+            else if (File.Exists(full))
+            {
+                File.Delete(full);
+            }
+            else
+            {
+                return Task.FromResult(ToolResult<object>.Failure(
+                    new ErrorInfo { Code = ErrorCodes.NotFound, Message = $"Path not found: {full}", Retryable = false },
+                    ResultMeta.Create(requestId, started)));
+            }
+
+            return Task.FromResult(ToolResult<object>.Success(
+                new { deleted = true, path = full, recycle = false },
+                ResultMeta.Create(requestId, started),
+                new PerformanceMeta
+                {
+                    Operation = CommandNames.FilesystemDelete,
+                    DurationMs = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds,
+                    ElementsInspected = 1,
+                    CacheHit = false,
+                    Provider = "Filesystem"
+                },
+                stateChanged: true));
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult(ToolResult<object>.Failure(
+                new ErrorInfo { Code = ErrorCodes.Internal, Message = ex.Message, Retryable = false },
+                ResultMeta.Create(requestId, started)));
+        }
+    }
+
     public static FileStatInfo Stat(string path)
     {
         var full = Path.GetFullPath(path);
@@ -308,5 +482,20 @@ public sealed class FileService
             Name = Path.GetFileName(full),
             Exists = false
         };
+    }
+
+    private static void CopyDirectory(string sourceDir, string destDir, bool overwrite)
+    {
+        Directory.CreateDirectory(destDir);
+        foreach (var file in Directory.EnumerateFiles(sourceDir))
+        {
+            var target = Path.Combine(destDir, Path.GetFileName(file));
+            File.Copy(file, target, overwrite);
+        }
+
+        foreach (var dir in Directory.EnumerateDirectories(sourceDir))
+        {
+            CopyDirectory(dir, Path.Combine(destDir, Path.GetFileName(dir)), overwrite);
+        }
     }
 }

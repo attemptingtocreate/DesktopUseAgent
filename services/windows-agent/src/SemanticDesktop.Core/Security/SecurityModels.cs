@@ -37,6 +37,9 @@ public static class Capabilities
     public const string ProcessLaunch = "process.launch";
     public const string ProcessTerminate = "process.terminate";
     public const string ShellExecute = "shell.execute";
+    public const string ClipboardRead = "clipboard.read";
+    public const string ClipboardWrite = "clipboard.write";
+    public const string SystemPower = "system.power";
     public const string PlanExecute = "plan.execute";
     public const string BrowserObserve = "browser.observe";
     public const string BrowserInteract = "browser.interact";

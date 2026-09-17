@@ -113,7 +113,17 @@ public static class CommandNames
     public const string FilesystemReadText = "filesystem.read_text";
     public const string FilesystemStat = "filesystem.stat";
     public const string FilesystemInspect = "filesystem.inspect";
+    public const string FilesystemCopy = "filesystem.copy";
+    public const string FilesystemMove = "filesystem.move";
+    public const string FilesystemDelete = "filesystem.delete";
+    public const string FilesystemOpen = "filesystem.open";
     public const string ProcessList = "process.list";
+    public const string AppLaunch = "app.launch";
+    public const string ShellOpen = "shell.open";
+    public const string ClipboardRead = "clipboard.read";
+    public const string ClipboardWrite = "clipboard.write";
+    public const string SystemPower = "system.power";
+    public const string SearchFiles = "search.files";
     public const string DesktopGetState = "desktop.get_state";
     public const string DesktopGetCapabilities = "desktop.get_capabilities";
     public const string DesktopDescribe = "desktop.describe";
@@ -203,6 +213,13 @@ public static class CommandNames
     public const string DiscordJoinVoice = "discord.join_voice";
     public const string DiscordQuickSwitch = "discord.quick_switch";
 
+    public const string OfficeOpen = "office.open";
+    public const string OfficeMailCompose = "office.mail_compose";
+    public const string OfficeCalendarWeek = "office.calendar_week";
+
+    public const string MediaTransport = "media.transport";
+    public const string MediaVolume = "media.volume";
+
     public const string RobloxOpenPlace = "roblox.open_place";
     public const string RobloxPluginPing = "roblox.plugin_ping";
     public const string RobloxGetHierarchy = "roblox.get_hierarchy";
@@ -238,6 +255,7 @@ public static class CommandNames
     public const string VisionCaptureScreen = "vision.capture_screen";
     public const string VisionCaptureWindow = "vision.capture_window";
     public const string VisionCaptureRegion = "vision.capture_region";
+    public const string VisionOcr = "vision.ocr";
 
     public const string SystemUpdateCheck = "system.update.check";
     public const string SystemUpdateApply = "system.update.apply";

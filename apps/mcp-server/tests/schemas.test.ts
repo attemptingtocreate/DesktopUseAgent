@@ -148,6 +148,43 @@ describe("tool schema validation", () => {
     expect(() => parseToolArgs("discord.quick_switch", {})).toThrow();
   });
 
+  it("accepts app.launch with name", () => {
+    expect(parseToolArgs("app.launch", { name: "Notepad", placement: "maximize" })).toEqual({
+      name: "Notepad",
+      placement: "maximize",
+    });
+  });
+
+  it("rejects app.launch without name", () => {
+    expect(() => parseToolArgs("app.launch", {})).toThrow();
+  });
+
+  it("accepts shell.open and clipboard.write", () => {
+    expect(parseToolArgs("shell.open", { target: "ms-settings:display" })).toEqual({
+      target: "ms-settings:display",
+    });
+    expect(parseToolArgs("clipboard.write", { text: "hello" })).toEqual({ text: "hello" });
+  });
+
+  it("accepts filesystem mutations and search.files", () => {
+    expect(
+      parseToolArgs("filesystem.copy", { source: "a.txt", destination: "b.txt", overwrite: true }),
+    ).toEqual({ source: "a.txt", destination: "b.txt", overwrite: true });
+    expect(parseToolArgs("filesystem.delete", { path: "a.txt" })).toEqual({ path: "a.txt" });
+    expect(parseToolArgs("search.files", { query: "report", maxResults: 10 })).toEqual({
+      query: "report",
+      maxResults: 10,
+    });
+  });
+
+  it("accepts system.power with confirm", () => {
+    expect(parseToolArgs("system.power", { action: "lock" })).toEqual({ action: "lock" });
+    expect(parseToolArgs("system.power", { action: "shutdown", confirm: true })).toEqual({
+      action: "shutdown",
+      confirm: true,
+    });
+  });
+
   it("accepts vision.capture_window compact params", () => {
     expect(
       parseToolArgs("vision.capture_window", {
@@ -162,6 +199,44 @@ describe("tool schema validation", () => {
       format: "jpeg",
       returnBase64: false,
     });
+  });
+
+  it("accepts vision.ocr with one source", () => {
+    expect(parseToolArgs("vision.ocr", { monitor: 0, language: "en" })).toEqual({
+      monitor: 0,
+      language: "en",
+    });
+    expect(
+      parseToolArgs("vision.ocr", { region: { x: 0, y: 0, width: 100, height: 50 } }),
+    ).toMatchObject({ region: { x: 0, y: 0, width: 100, height: 50 } });
+  });
+
+  it("rejects vision.ocr without a source or with multiple sources", () => {
+    expect(() => parseToolArgs("vision.ocr", {})).toThrow();
+    expect(() => parseToolArgs("vision.ocr", { monitor: 0, windowId: "win_1" })).toThrow();
+  });
+
+  it("accepts media.transport and media.volume", () => {
+    expect(parseToolArgs("media.transport", { action: "play_pause" })).toEqual({
+      action: "play_pause",
+    });
+    expect(parseToolArgs("media.volume", { action: "set", level: 40 })).toEqual({
+      action: "set",
+      level: 40,
+    });
+  });
+
+  it("rejects media.volume set without level", () => {
+    expect(() => parseToolArgs("media.volume", { action: "set" })).toThrow();
+  });
+
+  it("accepts office.open and office.mail_compose", () => {
+    expect(parseToolArgs("office.open", { app: "Word" })).toEqual({ app: "Word" });
+    expect(parseToolArgs("office.mail_compose", { to: "a@b.com", subject: "Hi" })).toEqual({
+      to: "a@b.com",
+      subject: "Hi",
+    });
+    expect(parseToolArgs("office.calendar_week", {})).toEqual({});
   });
 
   it("accepts empty object for desktop.get_state", () => {

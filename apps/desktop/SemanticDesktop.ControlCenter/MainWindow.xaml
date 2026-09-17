@@ -30,7 +30,7 @@
                                VerticalAlignment="Center" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,0,8,0">
-                    <TextBlock x:Name="TaskStatusText" Text=""
+                    <TextBlock x:Name="TaskStatusText" Text="" Visibility="Collapsed"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                VerticalAlignment="Center" />
                     <Button x:Name="StopTaskButton" Content="Stop" Click="StopTask_Click" Visibility="Collapsed" />
@@ -56,21 +56,16 @@
             CompactPaneLength="48"
             SelectionChanged="Nav_SelectionChanged">
             <NavigationView.MenuItems>
-                <NavigationViewItem Content="Chat" Tag="chat" IsSelected="True" />
-                <NavigationViewItem Content="Agents" Tag="agents" />
-                <NavigationViewItem Content="MCPs" Tag="mcps" />
-                <NavigationViewItem Content="Activity" Tag="activity" />
-                <NavigationViewItem Content="Permissions" Tag="permissions" />
+                <NavigationViewItem Content="Permissions" Tag="permissions" IsSelected="True" />
                 <NavigationViewItem Content="Health" Tag="health" />
                 <NavigationViewItem Content="Settings" Tag="settings" />
             </NavigationView.MenuItems>
             <NavigationView.FooterMenuItems>
-                <NavigationViewItem Content="Inspector" Tag="inspector" />
                 <NavigationViewItem Content="Logs" Tag="logs" />
             </NavigationView.FooterMenuItems>
 
             <Grid>
-                <Grid x:Name="ChatRoot">
+                <Grid x:Name="ChatRoot" Visibility="Collapsed">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="280" />
                         <ColumnDefinition Width="*" />
@@ -193,7 +188,7 @@
                     </Grid>
                 </Grid>
 
-                <ScrollViewer x:Name="PageScroller" Padding="20" Visibility="Collapsed">
+                <ScrollViewer x:Name="PageScroller" Padding="20">
                     <StackPanel x:Name="ContentHost" Spacing="12" />
                 </ScrollViewer>
             </Grid>

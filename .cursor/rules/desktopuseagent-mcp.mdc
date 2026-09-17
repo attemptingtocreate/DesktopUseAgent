@@ -8,11 +8,11 @@ alwaysApply: true
 When the user asks to control the Windows desktop, UI, apps, browser, or files via DesktopUseAgent:
 
 1. Use MCP tools from server id **`desktopuseagent`** (Mode B: local stdio → named pipe).
-2. Prefer semantic tools: `desktop_*`, `ui_*`, `window_*`, `browser_*`, adapters.
-3. Discord voice: call `discord_join_voice` once — do not vision/click Discord’s server rail.
-4. Do **not** invent screen coordinates — inspect first (`desktop_get_state`, `ui_*`, `window_list`).
-5. Use `input_*` / `vision_*` only as fallback when semantic paths fail.
-6. Consequential actions may require Control Center approval — wait for the user.
+2. Prefer foundation verbs first: `app_launch`, `shell_open`, `search_files`, `filesystem_*`, `clipboard_*`, `office_*`, `media_*`, adapters — one playbook per intent.
+3. Discord voice: call `discord_join_voice` once — do not vision/click Discord’s server rail. Prefer `vision_ocr` over screenshot loops when reading UI text.
+4. Do **not** invent screen coordinates — inspect with `desktop_get_state` / `ui_*` / `window_list` only when needed.
+5. Use `input_*` / `vision_*` only as fallback when semantic/foundation paths fail.
+6. Consequential actions may require Control Center approval — wait for the user. Never auto-click UAC.
 
 No OpenAI/Anthropic API key is required for Cursor agents to use these tools.
 

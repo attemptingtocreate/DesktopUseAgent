@@ -61,4 +61,6 @@ public sealed class AdvancedSettings
 {
     public int MaxToolIterations { get; set; } = 25;
     public bool ShowToolSummaries { get; set; } = true;
+    /// <summary>When false (default), Control Center shows only Mode B essentials.</summary>
+    public bool ShowAdvancedUi { get; set; }
 }

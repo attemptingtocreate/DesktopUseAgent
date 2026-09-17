@@ -102,12 +102,13 @@ public class BuiltInAdapterDiscoveryTests
             new VsCodeAdapter(),
             new VisualStudioAdapter(),
             new RobloxStudioAdapter(new InMemoryRobloxBridge()),
-            new DiscordAdapter()
+            new DiscordAdapter(),
+            new SemanticDesktop.Adapters.Office.OfficeAdapter()
         });
 
-        Assert.Equal(new[] { "blender", "discord", "roblox", "visualstudio", "vscode" }, registry.ListIds().ToArray());
+        Assert.Equal(new[] { "blender", "discord", "office", "roblox", "visualstudio", "vscode" }, registry.ListIds().ToArray());
         var caps = await registry.ListCapabilitiesAsync(CancellationToken.None);
-        Assert.Equal(5, caps.Count);
+        Assert.Equal(6, caps.Count);
         Assert.Contains(caps, c => c.AdapterId == "roblox" && c.Actions.Contains(CommandNames.RobloxPluginPing));
         Assert.Contains(caps, c => c.AdapterId == "blender" && c.Actions.Contains(CommandNames.BlenderExport));
         Assert.Contains(caps, c => c.AdapterId == "blender" && c.Actions.Contains(CommandNames.BlenderBatch));
@@ -115,6 +116,7 @@ public class BuiltInAdapterDiscoveryTests
         Assert.Contains(caps, c => c.AdapterId == "vscode" && c.Actions.Contains(CommandNames.VsCodeOpenFile));
         Assert.Contains(caps, c => c.AdapterId == "visualstudio" && c.Actions.Contains(CommandNames.VisualStudioBuild));
         Assert.Contains(caps, c => c.AdapterId == "discord" && c.Actions.Contains(CommandNames.DiscordJoinVoice));
+        Assert.Contains(caps, c => c.AdapterId == "office" && c.Actions.Contains(CommandNames.OfficeMailCompose));
     }
 
     [Fact]

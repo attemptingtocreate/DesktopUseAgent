@@ -20,43 +20,44 @@ Apply this skill when the user wants to inspect or control Windows UI, apps, bro
 
 If MCP tools are missing: ask the user to run `.\scripts\configure-cursor.ps1 -Scope user`, restart Cursor, and start Control Center.
 
+## Speed doctrine
+
+Everyday intents should finish in **&lt;10s**. Prefer **one foundation/adapter verb** that owns the whole playbook. Do not burn turns on vision → click → vision loops when a deep link, shell open, COM adapter, or OCR exists.
+
 ## Preferred tool order
 
-1. **Semantic inspect:** `desktop_get_state`, `desktop_describe`, `window_list`, `ui_*` find/tree
-2. **Act:** `ui_*`, `window_*`, `browser_*`, adapter tools, `process_launch` as appropriate
-3. **Avoid inventing coordinates;** use semantic refs from inspection
-4. **Last resort:** `input_*` / `vision_*` only when semantic paths fail
+1. **Foundation / adapters:** `app_launch`, `shell_open`, `search_files`, `filesystem_*`, `clipboard_*`, `browser_*`, `office_*`, `media_*`, `discord_*`, `vscode_*`, …
+2. **Semantic inspect:** `desktop_get_state`, `window_list`, `ui_*`, **`vision_ocr`** (structured text)
+3. **Last resort:** `input_*` / `vision_capture_*` — never invent coordinates
 
-Speed exception: simple “open this URL” may use `process_launch` or `browser_open_tab` immediately.
+### Common intents → tools
 
-### Discord (≤10s path)
+| User says | Tool |
+|-----------|------|
+| Open Notepad / Calculator / Store apps | `app_launch` `{ name }` (Win32 + Appx/AppsFolder) |
+| Open Wi‑Fi settings / PDF / mailto | `shell_open` `{ target }` |
+| Find “budget.xlsx” | `search_files` → `filesystem_open` |
+| Email bob@… | `office_mail_compose` `{ to, subject?, body? }` |
+| What’s on my calendar this week? | `office_calendar_week` |
+| Open Word/Excel/PPT | `office_open` `{ app, path? }` |
+| Read text on screen | `vision_ocr` (not full-window PNG loops) |
+| Play/pause / set volume | `media_transport` / `media_volume` |
+| Join Discord voice | `discord_join_voice` once |
+| Lock / sleep / shut down | `system_power` (`confirm: true` for destructive) |
 
-For “open Discord / join voice call X in server Y”:
+### Discord
 
-1. Call **`discord_join_voice`** once with `{ channel, server?, monitor?, placement? }`.
-2. Do **not** vision-capture Discord, click the server rail, or drive Ctrl+K yourself.
-3. Discord’s UIA tree is empty — `ui_find` / `ui_get_tree` will not help.
-4. Optional: `discord_open` only if you need launch/focus without joining.
-
-Also available: `discord_quick_switch` for generic Ctrl+K navigation.
-
-## First calls
-
-Typical start:
-
-1. `desktop_get_state` — confirm agent + desktop context
-2. Then `window_list` or targeted `ui_*` / `browser_*` for the task
-
-For Discord voice join, skip inspect and call `discord_join_voice` immediately.
+Call **`discord_join_voice`** once. Do not vision-hunt the server rail; UIA is empty.
 
 ## Permissions
 
-Consequential actions (clicks, writes, launches, `plan_execute`, `desktop_batch`, `discord_join_voice`) may need **Control Center approval**. Honor denials; never bypass the agent gate.
+Consequential actions may need Control Center approval. Never auto-click UAC.
 
 ## Vision
 
-`vision_capture_*` returns a **PNG file path** + optional JPEG thumbnail by default (not full `pngBase64`). Set `returnBase64: true` only when you must inline the image.
+- Prefer **`vision_ocr`** → `{ lines, text }` for reading UI.
+- `vision_capture_*` returns path + thumbnail by default (`returnBase64: true` only if needed).
 
 ## More
 
-See `docs/cursor-setup.md` in the DesktopUseAgent repo or release docs.
+See `docs/cursor-setup.md`. Control Center defaults to Mode B UI (Permissions / Health / Settings).

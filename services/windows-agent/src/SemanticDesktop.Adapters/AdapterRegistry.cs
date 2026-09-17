@@ -96,6 +96,7 @@ public sealed class AdapterRegistry
         "blender" => "blender",
         "roblox" => "roblox",
         "discord" => "discord",
+        "office" => "office",
         _ => prefix
     };
 }

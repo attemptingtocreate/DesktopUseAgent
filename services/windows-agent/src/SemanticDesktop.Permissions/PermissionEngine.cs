@@ -35,6 +35,9 @@ public sealed class PermissionPolicy
         [Capabilities.ProcessLaunch] = PermissionDecisionKind.Allow,
         [Capabilities.ProcessTerminate] = PermissionDecisionKind.Ask,
         [Capabilities.ShellExecute] = PermissionDecisionKind.Ask,
+        [Capabilities.ClipboardRead] = PermissionDecisionKind.Allow,
+        [Capabilities.ClipboardWrite] = PermissionDecisionKind.Ask,
+        [Capabilities.SystemPower] = PermissionDecisionKind.Ask,
         [Capabilities.PlanExecute] = PermissionDecisionKind.Allow,
         [Capabilities.BrowserObserve] = PermissionDecisionKind.Allow,
         [Capabilities.BrowserInteract] = PermissionDecisionKind.Allow,
@@ -143,12 +146,19 @@ public sealed class PermissionEngine
                 => Capabilities.WindowControl,
             CommandNames.UiGetTree or CommandNames.UiFind or CommandNames.UiGetText => Capabilities.UiObserve,
             CommandNames.UiInvoke or CommandNames.UiSetValue => Capabilities.UiInteract,
-            CommandNames.ProcessLaunch => Capabilities.ProcessLaunch,
+            CommandNames.ProcessLaunch or CommandNames.AppLaunch => Capabilities.ProcessLaunch,
+            CommandNames.ShellOpen or CommandNames.FilesystemOpen => Capabilities.ShellExecute,
             CommandNames.ProcessList => Capabilities.ProcessObserve,
+            CommandNames.ClipboardRead => Capabilities.ClipboardRead,
+            CommandNames.ClipboardWrite => Capabilities.ClipboardWrite,
+            CommandNames.SystemPower => Capabilities.SystemPower,
+            CommandNames.SearchFiles => Capabilities.FilesystemRead,
             CommandNames.FilesystemExists or CommandNames.FilesystemList or CommandNames.FilesystemReadText
                 or CommandNames.FilesystemStat or CommandNames.FilesystemInspect
                 => Capabilities.FilesystemRead,
-            CommandNames.FilesystemWriteText => Capabilities.FilesystemWrite,
+            CommandNames.FilesystemWriteText or CommandNames.FilesystemCopy or CommandNames.FilesystemMove
+                => Capabilities.FilesystemWrite,
+            CommandNames.FilesystemDelete => Capabilities.FilesystemDelete,
             CommandNames.DesktopGetState or CommandNames.DesktopGetCapabilities
                 or CommandNames.DesktopDescribe or CommandNames.DesktopGetGraph
                 or CommandNames.DesktopBatch or CommandNames.DesktopDiff
@@ -193,7 +203,8 @@ public sealed class PermissionEngine
                 or CommandNames.BlenderSelectGeometry
                 or CommandNames.VsCodeOpenFile or CommandNames.VsCodeOpenFolder or CommandNames.VsCodeExecuteCommand
                 or CommandNames.VisualStudioBuild or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
-                or CommandNames.DiscordOpen or CommandNames.DiscordJoinVoice or CommandNames.DiscordQuickSwitch
+                or             CommandNames.DiscordOpen or CommandNames.DiscordJoinVoice or CommandNames.DiscordQuickSwitch
+                or CommandNames.OfficeOpen or CommandNames.OfficeMailCompose or CommandNames.OfficeCalendarWeek
                 or CommandNames.RobloxOpenPlace or CommandNames.RobloxSelect or CommandNames.RobloxSetProperty
                 or CommandNames.RobloxCreateInstance or CommandNames.RobloxDestroyInstance or CommandNames.RobloxCloneInstance
                 or CommandNames.RobloxSetParent or CommandNames.RobloxSetScriptSource or CommandNames.RobloxBatch
@@ -205,8 +216,10 @@ public sealed class PermissionEngine
             CommandNames.InputMouseMove or CommandNames.InputMouseClick or CommandNames.InputMouseDrag or CommandNames.InputScroll
                 => Capabilities.InputMouse,
             CommandNames.InputKey or CommandNames.InputHotkey or CommandNames.InputType
+                or CommandNames.MediaTransport or CommandNames.MediaVolume
                 => Capabilities.InputKeyboard,
             CommandNames.VisionCaptureScreen or CommandNames.VisionCaptureWindow or CommandNames.VisionCaptureRegion
+                or CommandNames.VisionOcr
                 => Capabilities.VisionCapture,
             _ => Capabilities.SystemAdmin
         };
@@ -218,6 +231,7 @@ public sealed class PermissionEngine
                 or CommandNames.UiGetTree or CommandNames.UiFind or CommandNames.UiGetText
                 or CommandNames.FilesystemExists or CommandNames.FilesystemList or CommandNames.FilesystemReadText
                 or CommandNames.FilesystemStat or CommandNames.FilesystemInspect
+                or CommandNames.SearchFiles or CommandNames.ClipboardRead
                 or CommandNames.SystemPing or CommandNames.AuditList or CommandNames.SystemStatus or CommandNames.SystemPerformance
                 or CommandNames.SessionGet or CommandNames.SessionList or CommandNames.PermissionPending
                 or CommandNames.PermissionPolicyGet
@@ -241,8 +255,10 @@ public sealed class PermissionEngine
                 => RiskClass.Read,
             CommandNames.WindowFocus or CommandNames.WindowMinimize or CommandNames.WindowMaximize
                 or CommandNames.WindowRestore or CommandNames.WindowMove or CommandNames.WindowResize
-                or CommandNames.UiInvoke or CommandNames.UiSetValue or CommandNames.ProcessLaunch
+                or CommandNames.UiInvoke or CommandNames.UiSetValue or CommandNames.ProcessLaunch or CommandNames.AppLaunch
+                or CommandNames.ShellOpen or CommandNames.FilesystemOpen or CommandNames.ClipboardWrite
                 or CommandNames.PlanExecute or CommandNames.PlanCancel or CommandNames.FilesystemWriteText
+                or CommandNames.FilesystemCopy or CommandNames.FilesystemMove
                 or CommandNames.BrowserOpenTab or CommandNames.BrowserCloseTab or CommandNames.BrowserNavigate
                 or CommandNames.BrowserBack or CommandNames.BrowserForward or CommandNames.BrowserReload
                 or CommandNames.BrowserClick or CommandNames.BrowserFill or CommandNames.BrowserSelect or CommandNames.BrowserFocus
@@ -258,7 +274,8 @@ public sealed class PermissionEngine
                 or CommandNames.BlenderSelectGeometry
                 or CommandNames.VsCodeOpenFile or CommandNames.VsCodeOpenFolder or CommandNames.VsCodeExecuteCommand
                 or CommandNames.VisualStudioBuild or CommandNames.VisualStudioOpenFile or CommandNames.VisualStudioOpenSolution
-                or CommandNames.DiscordOpen or CommandNames.DiscordJoinVoice or CommandNames.DiscordQuickSwitch
+                or             CommandNames.DiscordOpen or CommandNames.DiscordJoinVoice or CommandNames.DiscordQuickSwitch
+                or CommandNames.OfficeOpen or CommandNames.OfficeMailCompose
                 or CommandNames.RobloxOpenPlace or CommandNames.RobloxSelect or CommandNames.RobloxSetProperty
                 or CommandNames.RobloxCreateInstance or CommandNames.RobloxDestroyInstance or CommandNames.RobloxCloneInstance
                 or CommandNames.RobloxSetParent or CommandNames.RobloxSetScriptSource or CommandNames.RobloxBatch
@@ -267,13 +284,18 @@ public sealed class PermissionEngine
                 or CommandNames.RobloxInsertAsset or CommandNames.RobloxImportLocalModel
                 or CommandNames.RobloxPublishPlace
                 => RiskClass.LowRiskWrite,
+            CommandNames.OfficeCalendarWeek => RiskClass.Read,
+            CommandNames.FilesystemDelete => RiskClass.Destructive,
+            CommandNames.SystemPower => RiskClass.Privileged,
             CommandNames.RobloxExecuteLuau
                 => RiskClass.HighRiskWrite,
             CommandNames.InputMouseMove or CommandNames.InputScroll => RiskClass.LowRiskWrite,
+            CommandNames.MediaTransport or CommandNames.MediaVolume => RiskClass.LowRiskWrite,
             CommandNames.InputMouseClick or CommandNames.InputMouseDrag
                 or CommandNames.InputKey or CommandNames.InputHotkey or CommandNames.InputType
                 => RiskClass.HighRiskWrite,
             CommandNames.VisionCaptureScreen or CommandNames.VisionCaptureWindow or CommandNames.VisionCaptureRegion
+                or CommandNames.VisionOcr
                 => RiskClass.Read,
             CommandNames.SystemEmergencyStop or CommandNames.SystemEmergencyStopClear
                 or CommandNames.SystemUpdateApply or CommandNames.SystemTelemetrySet => RiskClass.Privileged,

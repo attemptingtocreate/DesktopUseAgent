@@ -246,6 +246,29 @@ export const toolSchemas = {
       workingDirectory: z.string().optional(),
     })
     .strict(),
+  "app.launch": z
+    .object({
+      name: z.string().min(1),
+      args: z.array(z.string()).optional(),
+      monitor: z.number().int().nonnegative().optional(),
+      placement: z.enum(["maximize"]).nullable().optional(),
+      sessionId: z.string().optional(),
+    })
+    .strict(),
+  "shell.open": z
+    .object({
+      target: z.string().min(1),
+      args: z.array(z.string()).optional(),
+      sessionId: z.string().optional(),
+    })
+    .strict(),
+  "clipboard.read": emptyParams,
+  "clipboard.write": z
+    .object({
+      text: z.string(),
+      sessionId: z.string().optional(),
+    })
+    .strict(),
   "filesystem.list": z
     .object({
       path: z.string().optional(),
@@ -280,6 +303,51 @@ export const toolSchemas = {
     .object({
       path: z.string().optional(),
       paths: z.array(z.string().min(1)).optional(),
+    })
+    .strict(),
+  "filesystem.copy": z
+    .object({
+      source: z.string().min(1),
+      destination: z.string().min(1),
+      overwrite: z.boolean().optional(),
+      sessionId: z.string().optional(),
+    })
+    .strict(),
+  "filesystem.move": z
+    .object({
+      source: z.string().min(1),
+      destination: z.string().min(1),
+      sessionId: z.string().optional(),
+    })
+    .strict(),
+  "filesystem.delete": z
+    .object({
+      path: z.string().min(1),
+      recycle: z.boolean().optional(),
+      sessionId: z.string().optional(),
+    })
+    .strict(),
+  "filesystem.open": z
+    .object({
+      path: z.string().min(1),
+      select: z.boolean().optional(),
+      sessionId: z.string().optional(),
+    })
+    .strict(),
+  "system.power": z
+    .object({
+      action: z.enum(["lock", "sleep", "hibernate", "shutdown", "restart"]),
+      confirm: z.boolean().optional(),
+      sessionId: z.string().optional(),
+    })
+    .strict(),
+  "search.files": z
+    .object({
+      query: z.string().min(1),
+      roots: z.array(z.string().min(1)).optional(),
+      maxResults: z.number().int().positive().optional(),
+      extensions: z.array(z.string().min(1)).optional(),
+      sessionId: z.string().optional(),
     })
     .strict(),
   "plan.execute": z
@@ -845,6 +913,38 @@ export const toolSchemas = {
     .refine((v) => Boolean(v.query || v.channel), {
       message: "query or channel is required",
     }),
+  "office.open": z
+    .object({
+      app: z.enum(["Word", "Excel", "PowerPoint", "Outlook", "word", "excel", "powerpoint", "outlook", "ppt"]),
+      path: z.string().min(1).optional(),
+      sessionId: z.string().optional(),
+    })
+    .strict(),
+  "office.mail_compose": z
+    .object({
+      to: z.string().min(1),
+      subject: z.string().optional(),
+      body: z.string().optional(),
+      sessionId: z.string().optional(),
+    })
+    .strict(),
+  "office.calendar_week": z.object({ sessionId: z.string().optional() }).strict(),
+  "media.transport": z
+    .object({
+      action: z.enum(["play_pause", "next", "previous", "stop"]),
+      sessionId: z.string().optional(),
+    })
+    .strict(),
+  "media.volume": z
+    .object({
+      action: z.enum(["up", "down", "mute", "set"]),
+      level: z.number().int().min(0).max(100).optional(),
+      sessionId: z.string().optional(),
+    })
+    .strict()
+    .refine((v) => v.action !== "set" || v.level !== undefined, {
+      message: "level is required when action is set",
+    }),
   "roblox.open_place": z
     .object({
       path: z.string().min(1).optional(),
@@ -1202,6 +1302,38 @@ export const toolSchemas = {
       returnBase64: z.boolean().optional(),
     })
     .strict(),
+  "vision.ocr": z
+    .object({
+      windowId: z.string().min(1).optional(),
+      monitor: z.number().int().nonnegative().optional(),
+      region: z
+        .object({
+          x: z.number().int(),
+          y: z.number().int(),
+          width: z.number().int().positive(),
+          height: z.number().int().positive(),
+        })
+        .strict()
+        .optional(),
+      x: z.number().int().optional(),
+      y: z.number().int().optional(),
+      width: z.number().int().positive().optional(),
+      height: z.number().int().positive().optional(),
+      path: z.string().min(1).optional(),
+      language: z.string().min(1).optional(),
+      sessionId: z.string().optional(),
+    })
+    .strict()
+    .refine(
+      (v) => {
+        const hasRegion =
+          Boolean(v.region) ||
+          (v.x !== undefined && v.y !== undefined && v.width !== undefined && v.height !== undefined);
+        const sources = [Boolean(v.windowId), v.monitor !== undefined, hasRegion, Boolean(v.path)].filter(Boolean).length;
+        return sources === 1;
+      },
+      { message: "exactly one of windowId, monitor, region (or x/y/width/height), or path is required" },
+    ),
 } as const;
 
 export type ToolName = keyof typeof toolSchemas;
@@ -1234,12 +1366,22 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   "ui.wait_for": "Wait until a UI element matching the selector exists.",
   "process.list": "List running processes.",
   "process.launch": "Launch an executable process.",
+  "app.launch": "Resolve and launch an app by Start Menu / App Paths / fuzzy name / AppsFolder Appx (optional monitor/placement).",
+  "shell.open": "Open a file, folder, or URI via the shell (ms-settings:, https:, mailto:, etc.).",
+  "clipboard.read": "Read Unicode text from the Windows clipboard.",
+  "clipboard.write": "Write Unicode text to the Windows clipboard.",
   "filesystem.list": "List files and directories at a path.",
   "filesystem.exists": "Check whether a filesystem path exists.",
   "filesystem.read_text": "Read a text file.",
   "filesystem.write_text": "Write a text file.",
   "filesystem.stat": "Return size/mtime/exists metadata for a filesystem path.",
   "filesystem.inspect": "List a directory with per-entry stats and optional extra path stats in one call.",
+  "filesystem.copy": "Copy a file or directory (optional overwrite).",
+  "filesystem.move": "Move/rename a file or directory.",
+  "filesystem.delete": "Delete a path (recycle=true default; hard delete when recycle=false).",
+  "filesystem.open": "Open a path via the shell; optional explorer /select.",
+  "system.power": "Lock/sleep/hibernate/shutdown/restart (confirm=true required for hibernate/shutdown/restart).",
+  "search.files": "Fast filename search under Documents/Desktop/Downloads (optional roots/extensions).",
   "plan.execute": "Execute a multi-step automation plan.",
   "plan.cancel": "Cancel a running plan by id.",
   "system.emergency_stop": "Engage the agent emergency stop gate.",
@@ -1271,7 +1413,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   "browser.get_downloads": "List recent browser downloads tracked by the agent.",
   "adapter.list": "List application adapters and their availability/actions.",
   "adapter.capabilities": "Get capabilities for one adapter or all adapters.",
-  "adapter.execute": "Execute an application-adapter action (Blender/VS Code/Visual Studio/Roblox Studio/Discord).",
+  "adapter.execute": "Execute an application-adapter action (Blender/VS Code/Visual Studio/Roblox Studio/Discord/Office).",
   "blender.open": "Open a .blend file. Default mode background validates headlessly; mode gui launches visible Blender.",
   "blender.get_scene": "Inspect the Blender scene via Python scripting.",
   "blender.get_objects": "List Blender objects via Python scripting.",
@@ -1305,6 +1447,11 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   "discord.open": "Launch or focus Discord; optional monitor/placement.",
   "discord.join_voice": "Join a Discord voice channel via Ctrl+K quick switch (best-effort title verify).",
   "discord.quick_switch": "Focus Discord and run Ctrl+K quick switch for a query (no join verify).",
+  "office.open": "Open Word, Excel, PowerPoint, or Outlook via COM (optional document path).",
+  "office.mail_compose": "Compose an Outlook mail (COM) or mailto fallback with to/subject/body.",
+  "office.calendar_week": "List Outlook calendar appointments for the current week as JSON.",
+  "media.transport": "Send media transport keys: play_pause, next, previous, stop.",
+  "media.volume": "Volume up/down/mute via keys, or set absolute level 0-100 via CoreAudio when available.",
   "roblox.open_place": "Launch Roblox Studio with an absolute .rbxl/.rbxlx place path.",
   "roblox.plugin_ping": "Report Roblox bridge listener and Studio plugin connection state.",
   "roblox.get_hierarchy": "Get a bounded instance hierarchy from the connected Roblox Studio plugin.",
@@ -1338,6 +1485,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   "vision.capture_screen": "Capture screen/monitor; returns PNG path + JPEG thumbnail by default (set returnBase64=true for legacy inline).",
   "vision.capture_window": "Capture a window; returns PNG path + JPEG thumbnail by default (set returnBase64=true for legacy inline).",
   "vision.capture_region": "Capture a screen region; returns PNG path + JPEG thumbnail by default (set returnBase64=true for legacy inline).",
+  "vision.ocr": "OCR text from a window, monitor, region, or image path via Windows.Media.Ocr (structured lines/text only; no pngBase64).",
 };
 
 export function parseToolArgs<T extends ToolName>(

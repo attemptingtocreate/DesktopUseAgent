@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Linq;
 using System.Text.Json;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
@@ -21,7 +22,7 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
 {
     private readonly DispatcherQueueTimer _timer;
     private ControlCenterSnapshot _snapshot = ControlCenterSnapshot.Disconnected(App.Bridge.PipeName);
-    private string _section = "chat";
+    private string _section = "permissions";
     private string _emergencyHotkey = "Ctrl+Alt+Shift+Esc";
     private string? _conversationId;
     private string? _pendingApprovalId;
@@ -29,6 +30,7 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
     private int _actionsCompleted;
     private bool _sending;
     private bool _suppressAgentChange;
+    private bool _suppressNavChange;
     private TextBox? _inspectorWindowId;
     private TextBox? _inspectorQuery;
     private TextBlock? _inspectorOutput;
@@ -53,11 +55,107 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
         _openAiTunnelStatusHandler = OnOpenAiTunnelStatusChanged;
         App.Host.OpenAiTunnel.StatusChanged += _openAiTunnelStatusHandler;
         Closed += MainWindow_Closed;
+        ApplyNavigationMode();
         _timer = DispatcherQueue.CreateTimer();
         _timer.Interval = TimeSpan.FromSeconds(2);
         _timer.Tick += async (_, _) => await RefreshAsync(silent: true);
         _timer.Start();
         _ = BootstrapAsync();
+    }
+
+    private static bool IsAdvancedSection(string tag) =>
+        tag is "chat" or "agents" or "mcps" or "activity" or "inspector";
+
+    private void ApplyNavigationMode()
+    {
+        var showAdvanced = App.Host.Settings.Get().Advanced.ShowAdvancedUi;
+        _suppressNavChange = true;
+        try
+        {
+            Nav.MenuItems.Clear();
+            Nav.FooterMenuItems.Clear();
+
+            NavigationViewItem Make(string content, string tag, bool selected = false) =>
+                new() { Content = content, Tag = tag, IsSelected = selected };
+
+            var target = _section;
+            if (!showAdvanced && IsAdvancedSection(target))
+            {
+                target = "permissions";
+            }
+
+            _section = target;
+
+            if (showAdvanced)
+            {
+                Nav.MenuItems.Add(Make("Chat", "chat", target == "chat"));
+                Nav.MenuItems.Add(Make("Agents", "agents", target == "agents"));
+                Nav.MenuItems.Add(Make("MCPs", "mcps", target == "mcps"));
+                Nav.MenuItems.Add(Make("Activity", "activity", target == "activity"));
+            }
+
+            Nav.MenuItems.Add(Make("Permissions", "permissions", target == "permissions"));
+            Nav.MenuItems.Add(Make("Health", "health", target == "health"));
+            Nav.MenuItems.Add(Make("Settings", "settings", target == "settings"));
+
+            if (showAdvanced)
+            {
+                Nav.FooterMenuItems.Add(Make("Inspector", "inspector", target == "inspector"));
+            }
+
+            Nav.FooterMenuItems.Add(Make("Logs", "logs", target == "logs"));
+
+            foreach (var item in Nav.MenuItems.OfType<NavigationViewItem>()
+                         .Concat(Nav.FooterMenuItems.OfType<NavigationViewItem>()))
+            {
+                if (item.Tag is string t && t == target)
+                {
+                    Nav.SelectedItem = item;
+                    break;
+                }
+            }
+
+            var chat = target == "chat";
+            ChatRoot.Visibility = chat ? Visibility.Visible : Visibility.Collapsed;
+            PageScroller.Visibility = chat ? Visibility.Collapsed : Visibility.Visible;
+        }
+        finally
+        {
+            _suppressNavChange = false;
+        }
+
+        if (_section == "chat")
+        {
+            ReloadConversations();
+            ReloadAgents();
+            RenderChatMessages();
+        }
+        else
+        {
+            RenderSection();
+        }
+    }
+
+    private void SelectNavItem(string tag)
+    {
+        foreach (var item in Nav.MenuItems.OfType<NavigationViewItem>()
+                     .Concat(Nav.FooterMenuItems.OfType<NavigationViewItem>()))
+        {
+            if (item.Tag is string t && t == tag)
+            {
+                _suppressNavChange = true;
+                try
+                {
+                    Nav.SelectedItem = item;
+                }
+                finally
+                {
+                    _suppressNavChange = false;
+                }
+
+                return;
+            }
+        }
     }
 
     private async Task BootstrapAsync()
@@ -145,8 +243,24 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
 
     private void Nav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
+        if (_suppressNavChange)
+        {
+            return;
+        }
+
         if (args.SelectedItem is NavigationViewItem item && item.Tag is string tag)
         {
+            var showAdvanced = App.Host.Settings.Get().Advanced.ShowAdvancedUi;
+            if (!showAdvanced && IsAdvancedSection(tag))
+            {
+                _section = "permissions";
+                SelectNavItem("permissions");
+                ChatRoot.Visibility = Visibility.Collapsed;
+                PageScroller.Visibility = Visibility.Visible;
+                RenderSection();
+                return;
+            }
+
             _section = tag;
             var chat = tag == "chat";
             ChatRoot.Visibility = chat ? Visibility.Visible : Visibility.Collapsed;
@@ -891,6 +1005,8 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
     private void RenderSettings()
     {
         var settings = App.Host.Settings.Get();
+        var showAdvanced = settings.Advanced.ShowAdvancedUi;
+
         ContentHost.Children.Add(Header("General"));
         var launch = Toggle("Launch at startup", settings.General.LaunchAtStartup, value =>
         {
@@ -903,14 +1019,17 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
             settings.General.MinimizeToTray = value;
             App.Host.Settings.Save(settings);
         });
-        var notify = Toggle("Notifications", settings.General.Notifications, value =>
-        {
-            settings.General.Notifications = value;
-            App.Host.Settings.Save(settings);
-        });
         ContentHost.Children.Add(launch);
         ContentHost.Children.Add(tray);
-        ContentHost.Children.Add(notify);
+        if (showAdvanced)
+        {
+            ContentHost.Children.Add(Toggle("Notifications", settings.General.Notifications, value =>
+            {
+                settings.General.Notifications = value;
+                App.Host.Settings.Save(settings);
+            }));
+        }
+
         var close = new ComboBox { Width = 280 };
         close.Items.Add("Leave agent running");
         close.Items.Add("Exit everything");
@@ -930,6 +1049,22 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
             App.Host.Settings.Save(settings);
         }));
         ContentHost.Children.Add(Card($"Emergency stop shortcut: {_emergencyHotkey}"));
+
+        ContentHost.Children.Add(Toggle(
+            "Show advanced UI (Chat, Agents, MCP tunnel, Inspector…)",
+            showAdvanced,
+            value =>
+            {
+                settings.Advanced.ShowAdvancedUi = value;
+                App.Host.Settings.Save(settings);
+                ApplyNavigationMode();
+            }));
+
+        if (!showAdvanced)
+        {
+            return;
+        }
+
         ContentHost.Children.Add(Toggle("Prefer semantic interfaces over fallback input/vision", settings.ComputerControl.PreferSemanticOverFallback, value =>
         {
             settings.ComputerControl.PreferSemanticOverFallback = value;
@@ -1099,13 +1234,16 @@ public sealed partial class MainWindow : Window, IAgentRuntimeObserver
             ContentHost.Children.Add(Card($"Install root: {_snapshot.InstallRoot}"));
         }
 
-        var tunnel = App.Host.OpenAiTunnel.GetStatus();
-        ContentHost.Children.Add(Card($"ChatGPT Secure MCP Tunnel (advanced): {tunnel.State} — {tunnel.Message}"));
+        if (App.Host.Settings.Get().Advanced.ShowAdvancedUi)
+        {
+            var tunnel = App.Host.OpenAiTunnel.GetStatus();
+            ContentHost.Children.Add(Card($"ChatGPT Secure MCP Tunnel (advanced): {tunnel.State} — {tunnel.Message}"));
 
-        RenderAdapterHealth("Roblox Studio", _snapshot.RobloxHealth, ".\\scripts\\install-roblox-plugin.ps1");
-        RenderAdapterHealth("Blender", _snapshot.BlenderHealth, ".\\scripts\\install-blender-addon.ps1");
+            RenderAdapterHealth("Roblox Studio", _snapshot.RobloxHealth, ".\\scripts\\install-roblox-plugin.ps1");
+            RenderAdapterHealth("Blender", _snapshot.BlenderHealth, ".\\scripts\\install-blender-addon.ps1");
 
-        ContentHost.Children.Add(Card($"Telemetry: {(_snapshot.TelemetryEnabled ? "enabled (local only)" : "disabled")}"));
+            ContentHost.Children.Add(Card($"Telemetry: {(_snapshot.TelemetryEnabled ? "enabled (local only)" : "disabled")}"));
+        }
 
         var configureCursor = new Button { Content = "Configure Cursor MCP (user)" };
         configureCursor.Click += async (_, _) => await RunConfigureCursorAsync();
