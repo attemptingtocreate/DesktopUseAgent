@@ -4,6 +4,10 @@ This plugin connects Roblox Studio to the local DesktopUseAgent Windows bridge. 
 
 Semantic graph + script tools are preferred over vision scraping of Studio chrome. **Arbitrary Luau `loadstring` is not exposed** — scripts are edited via `get_script_source` / `set_script_source` only.
 
+## Animation and cinematic metadata
+
+`roblox.animation_configure`, `roblox.animation_marker_add`, `roblox.animation_bind`, and `roblox.sequence_apply` store centralized, typed metadata in `ReplicatedStorage.DesktopUseAgentAnimationManifest`. Use `roblox.output_read` and `roblox.playtest_inspect` for deterministic runtime QA before viewport inspection. See `docs/animation-workflows.md`.
+
 ## Requirements
 
 1. DesktopUseAgent Windows agent running on the same machine.

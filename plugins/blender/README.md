@@ -2,6 +2,10 @@
 
 Opt-in loopback bridge for live Blender scene/selection/render operations from DesktopUseAgent.
 
+## Declarative animation
+
+The live bridge also supports `blender.animation_apply`, `blender.animation_inspect`, `blender.animation_preview`, and `blender.asset_validate`. `animation_apply` receives typed batched poses, timing, interpolation, root-motion policy, and markers, and creates a normal Blender Action without UI injection. See `docs/animation-workflows.md` for the cross-adapter workflow.
+
 ## Requirements
 
 - Blender 3.6+

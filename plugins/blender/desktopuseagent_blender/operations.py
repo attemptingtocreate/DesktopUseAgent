@@ -27,6 +27,10 @@ ALLOWLIST = {
     "uv_unwrap",
     "select_geometry",
     "execute_python",
+    "animation_apply",
+    "animation_inspect",
+    "animation_preview",
+    "asset_validate",
 }
 
 CREATE_MESH_KINDS = {
@@ -134,6 +138,80 @@ def execute(operation, params):
                 for o in bpy.data.objects
             ]
         }
+
+    # Declarative animation operations intentionally accept a compact batch of
+    # bone poses/keyframes.  This keeps the bridge semantic and avoids one RPC
+    # per bone or frame while retaining normal Blender Actions/F-curves.
+    if operation == "animation_inspect":
+        armature = bpy.data.objects.get(params.get("armature")) if params.get("armature") else bpy.context.object
+        if armature is None or armature.type != "ARMATURE":
+            raise RuntimeError("armature not found")
+        action = armature.animation_data.action if armature.animation_data else None
+        return {"armature": armature.name, "bones": [b.name for b in armature.pose.bones],
+                "action": action.name if action else None,
+                "frameRange": list(action.frame_range) if action else None,
+                "markers": [{"name": m.name, "frame": m.frame} for m in bpy.context.scene.timeline_markers]}
+
+    if operation == "animation_apply":
+        armature = bpy.data.objects.get(params.get("armature"))
+        if armature is None or armature.type != "ARMATURE":
+            raise RuntimeError("armature must name an ARMATURE")
+        spec = params.get("spec") or params
+        name = spec.get("name") or params.get("name")
+        if not name:
+            raise RuntimeError("animation name is required")
+        fps = int(spec.get("fps") or 30)
+        duration = float(spec.get("duration") or 0)
+        if fps < 1 or fps > 240 or duration <= 0 or duration > 600:
+            raise RuntimeError("fps must be 1..240 and duration must be 0..600")
+        action = bpy.data.actions.get(name) or bpy.data.actions.new(name)
+        action.fcurves.clear()
+        if armature.animation_data is None:
+            armature.animation_data_create()
+        armature.animation_data.action = action
+        scene = bpy.context.scene
+        scene.render.fps = fps
+        scene.frame_start = int(spec.get("frameStart") or 1)
+        scene.frame_end = scene.frame_start + max(1, round(duration * fps))
+        inserted = 0
+        for pose in spec.get("poses", []):
+            frame = float(pose.get("frame") or (scene.frame_start + float(pose.get("time", 0)) * fps))
+            for bone in pose.get("bones", []):
+                pb = armature.pose.bones.get(bone.get("name"))
+                if pb is None:
+                    raise RuntimeError("missing bone: " + str(bone.get("name")))
+                if bone.get("location") is not None: pb.location = bone["location"]
+                if bone.get("rotation") is not None:
+                    pb.rotation_mode = bone.get("rotationMode", "XYZ")
+                    pb.rotation_euler = bone["rotation"]
+                if bone.get("scale") is not None: pb.scale = bone["scale"]
+                for path in ("location", "rotation_euler", "scale"):
+                    if bone.get(path.replace("rotation_euler", "rotation")) is not None or (path == "location" and bone.get("location") is not None) or (path == "scale" and bone.get("scale") is not None):
+                        pb.keyframe_insert(data_path=path, frame=frame); inserted += 1
+        interpolation = spec.get("interpolation", "BEZIER").upper()
+        for curve in action.fcurves:
+            for point in curve.keyframe_points: point.interpolation = interpolation
+        for marker in spec.get("markers", []):
+            marker_name = marker.get("name")
+            if not marker_name: continue
+            old = scene.timeline_markers.get(marker_name)
+            if old: scene.timeline_markers.remove(old)
+            scene.timeline_markers.new(marker_name, frame=scene.frame_start + round(float(marker.get("time", 0)) * fps))
+        action["desktopuseagent.priority"] = spec.get("priority", "Action")
+        action["desktopuseagent.loop"] = bool(spec.get("loop", False))
+        return {"action": action.name, "armature": armature.name, "keyframes": inserted, "frameRange": [scene.frame_start, scene.frame_end]}
+
+    if operation == "animation_preview":
+        frame = int(params.get("frame") or bpy.context.scene.frame_current)
+        bpy.context.scene.frame_set(frame)
+        return execute("render", {"output": params.get("output"), "frame": frame, "overwrite": params.get("overwrite", False)})
+
+    if operation == "asset_validate":
+        armature = bpy.data.objects.get(params.get("armature")) if params.get("armature") else None
+        required = params.get("requiredBones") or []
+        missing = [name for name in required if armature is None or armature.pose.bones.get(name) is None]
+        output = params.get("output")
+        return {"valid": not missing and (not output or __import__('os').path.isfile(output)), "missingBones": missing, "exportExists": bool(output and __import__('os').path.isfile(output))}
 
     if operation == "select_object":
         name = params.get("name") or params.get("object")

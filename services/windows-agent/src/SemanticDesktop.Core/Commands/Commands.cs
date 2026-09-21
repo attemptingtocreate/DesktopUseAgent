@@ -198,6 +198,10 @@ public static class CommandNames
     public const string BlenderMaterialSet = "blender.material_set";
     public const string BlenderUvUnwrap = "blender.uv_unwrap";
     public const string BlenderSelectGeometry = "blender.select_geometry";
+    public const string BlenderAnimationApply = "blender.animation_apply";
+    public const string BlenderAnimationInspect = "blender.animation_inspect";
+    public const string BlenderAnimationPreview = "blender.animation_preview";
+    public const string BlenderAssetValidate = "blender.asset_validate";
 
     public const string VsCodeOpenFile = "vscode.open_file";
     public const string VsCodeOpenFolder = "vscode.open_folder";
@@ -243,6 +247,12 @@ public static class CommandNames
     public const string RobloxImportLocalModel = "roblox.import_local_model";
     public const string RobloxPublishPlace = "roblox.publish_place";
     public const string RobloxExecuteLuau = "roblox.execute_luau";
+    public const string RobloxAnimationConfigure = "roblox.animation_configure";
+    public const string RobloxAnimationBind = "roblox.animation_bind";
+    public const string RobloxAnimationMarkerAdd = "roblox.animation_marker_add";
+    public const string RobloxSequenceApply = "roblox.sequence_apply";
+    public const string RobloxOutputRead = "roblox.output_read";
+    public const string RobloxPlaytestInspect = "roblox.playtest_inspect";
 
     public const string InputMouseMove = "input.mouse_move";
     public const string InputMouseClick = "input.mouse_click";

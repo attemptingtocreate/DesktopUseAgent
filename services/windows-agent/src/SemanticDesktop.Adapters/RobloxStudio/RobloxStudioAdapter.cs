@@ -63,7 +63,10 @@ public sealed class RobloxStudioAdapter : IApplicationAdapter, IRobloxPlaceLaunc
                 CommandNames.RobloxInsertAsset,
                 CommandNames.RobloxImportLocalModel,
                 CommandNames.RobloxPublishPlace,
-                CommandNames.RobloxExecuteLuau
+                CommandNames.RobloxExecuteLuau,
+                CommandNames.RobloxAnimationConfigure, CommandNames.RobloxAnimationBind,
+                CommandNames.RobloxAnimationMarkerAdd, CommandNames.RobloxSequenceApply,
+                CommandNames.RobloxOutputRead, CommandNames.RobloxPlaytestInspect
             },
             Meta = new Dictionary<string, object?>
             {
@@ -107,6 +110,12 @@ public sealed class RobloxStudioAdapter : IApplicationAdapter, IRobloxPlaceLaunc
             CommandNames.RobloxImportLocalModel => await ImportLocalModelAsync(command, cancellationToken).ConfigureAwait(false),
             CommandNames.RobloxPublishPlace => await PublishPlaceAsync(command, cancellationToken).ConfigureAwait(false),
             CommandNames.RobloxExecuteLuau => await ExecuteLuauAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxAnimationConfigure => await BridgeOpAsync(command, RobloxBridgeOperations.AnimationConfigure, command.Params ?? new(), 60, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxAnimationBind => await BridgeOpAsync(command, RobloxBridgeOperations.AnimationBind, command.Params ?? new(), 60, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxAnimationMarkerAdd => await BridgeOpAsync(command, RobloxBridgeOperations.AnimationMarkerAdd, command.Params ?? new(), 60, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxSequenceApply => await BridgeOpAsync(command, RobloxBridgeOperations.SequenceApply, command.Params ?? new(), 90, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxOutputRead => await BridgeOpAsync(command, RobloxBridgeOperations.OutputRead, command.Params ?? new(), 30, cancellationToken).ConfigureAwait(false),
+            CommandNames.RobloxPlaytestInspect => await BridgeOpAsync(command, RobloxBridgeOperations.PlaytestInspect, command.Params ?? new(), 30, cancellationToken).ConfigureAwait(false),
             _ => AdapterResult.Fail(ErrorCodes.Unsupported, $"Unknown roblox action '{command.Action}'.")
         };
     }

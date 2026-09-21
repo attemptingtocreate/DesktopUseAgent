@@ -106,6 +106,10 @@ public static class BlenderBridgeOperations
     public const string UvUnwrap = "uv_unwrap";
     public const string SelectGeometry = "select_geometry";
     public const string ExecutePython = "execute_python";
+    public const string AnimationApply = "animation_apply";
+    public const string AnimationInspect = "animation_inspect";
+    public const string AnimationPreview = "animation_preview";
+    public const string AssetValidate = "asset_validate";
 
     public static readonly HashSet<string> Allowlist = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -131,6 +135,10 @@ public static class BlenderBridgeOperations
         MaterialSet,
         UvUnwrap,
         SelectGeometry,
+        AnimationApply,
+        AnimationInspect,
+        AnimationPreview,
+        AssetValidate,
         ExecutePython
     };
 

@@ -41,6 +41,22 @@ local instanceMap = {}
 local nextInstanceId = 1
 local commandQueue = {}
 local backoff = POLL_INTERVAL
+local diagnostics = {}
+
+local function diagnostic(message)
+	table.insert(diagnostics, { time = os.time(), message = tostring(message) })
+	while #diagnostics > 500 do table.remove(diagnostics, 1) end
+end
+
+local function animationMetadataFolder()
+	local folder = game:GetService("ReplicatedStorage"):FindFirstChild("DesktopUseAgentAnimationManifest")
+	if not folder then
+		folder = Instance.new("Folder")
+		folder.Name = "DesktopUseAgentAnimationManifest"
+		folder.Parent = game:GetService("ReplicatedStorage")
+	end
+	return folder
+end
 
 local function baseUrl(path)
 	return string.format("http://%s:%d%s?token=%s", config.host, config.port, path, HttpService:UrlEncode(config.token or ""))
@@ -503,6 +519,58 @@ local function executeSingle(operation, params)
 				pollingEnabled = pollingEnabled,
 			},
 		}
+	end
+
+	if operation == "animation_configure" then
+		local id = params.animationId
+		if type(id) ~= "string" or id == "" then return { ok = false, error = "animation_id_required" } end
+		local folder = animationMetadataFolder()
+		local value = folder:FindFirstChild(id) or Instance.new("StringValue")
+		value.Name = id
+		value.Value = type(params.assetId) == "string" and params.assetId or value.Value
+		value:SetAttribute("Priority", params.priority or "Action")
+		value:SetAttribute("Looped", params.looped == true)
+		value.Parent = folder
+		return { ok = true, data = { animationId = id, assetId = value.Value, priority = value:GetAttribute("Priority"), looped = value:GetAttribute("Looped") } }
+	end
+
+	if operation == "animation_marker_add" then
+		if type(params.animationId) ~= "string" or type(params.name) ~= "string" or type(params.time) ~= "number" then return { ok = false, error = "invalid_marker" } end
+		local folder = animationMetadataFolder()
+		local key = params.animationId .. ":" .. params.name
+		local marker = folder:FindFirstChild(key) or Instance.new("NumberValue")
+		marker.Name = key; marker.Value = params.time; marker.Parent = folder
+		return { ok = true, data = { marker = params.name, time = params.time } }
+	end
+
+	if operation == "animation_bind" then
+		local animator = resolveInstance(params.animatorId)
+		if not animator or not animator:IsA("Animator") then return { ok = false, error = "animator_not_found" } end
+		local binding = Instance.new("StringValue")
+		binding.Name = "DesktopUseAgentBinding_" .. tostring(params.animationId)
+		binding.Value = HttpService:JSONEncode({ animationId = params.animationId, markerCallbacks = params.markerCallbacks or {} })
+		binding.Parent = animator
+		return { ok = true, data = { animatorId = params.animatorId, animationId = params.animationId, bound = true } }
+	end
+
+	if operation == "sequence_apply" then
+		local spec = params.spec
+		if type(spec) ~= "table" or type(spec.name) ~= "string" or type(spec.tracks) ~= "table" then return { ok = false, error = "invalid_sequence_spec" } end
+		local folder = animationMetadataFolder()
+		local sequence = folder:FindFirstChild("Sequence_" .. spec.name) or Instance.new("StringValue")
+		sequence.Name = "Sequence_" .. spec.name; sequence.Value = HttpService:JSONEncode(spec); sequence.Parent = folder
+		return { ok = true, data = { name = spec.name, duration = spec.duration, tracks = #spec.tracks, stored = true } }
+	end
+
+	if operation == "output_read" then
+		local maxLines = math.clamp(tonumber(params.maxLines) or 100, 1, 500)
+		local start = math.max(1, #diagnostics - maxLines + 1)
+		local lines = {}; for i = start, #diagnostics do table.insert(lines, diagnostics[i]) end
+		return { ok = true, data = { lines = lines, count = #lines } }
+	end
+
+	if operation == "playtest_inspect" then
+		return { ok = true, data = { running = RunService:IsRunning(), diagnostics = #diagnostics } }
 	end
 
 	if operation == "get_hierarchy" then

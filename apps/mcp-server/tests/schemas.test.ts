@@ -279,4 +279,18 @@ describe("tool schema validation", () => {
       expect(typeof schema.parse).toBe("function");
     }
   });
+
+  it("validates declarative animation and cinematic specifications", () => {
+    expect(parseToolArgs("blender.animation_apply", {
+      armature: "PlayerR15", spec: { name: "Shovel_Dig_01", fps: 30, duration: 1.65,
+        markers: [{ name: "ShovelImpact", time: 0.84 }],
+        poses: [{ time: 0, bones: [{ name: "RightUpperArm", rotation: [0, 0, 0] }] }] },
+    })).toMatchObject({ armature: "PlayerR15" });
+    expect(() => parseToolArgs("blender.animation_apply", {
+      armature: "Rig", spec: { name: "Broken", fps: 0, duration: 1 },
+    })).toThrow();
+    expect(parseToolArgs("roblox.sequence_apply", {
+      spec: { name: "Reveal", duration: 3, tracks: [{ target: "Egg", kind: "tween", events: [{ time: 0, action: "appear" }] }] },
+    })).toMatchObject({ spec: { name: "Reveal" } });
+  });
 });

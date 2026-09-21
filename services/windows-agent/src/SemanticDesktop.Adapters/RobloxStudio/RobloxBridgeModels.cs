@@ -105,6 +105,12 @@ public static class RobloxBridgeOperations
     public const string ImportLocalModel = "import_local_model";
     public const string PublishPlace = "publish_place";
     public const string ExecuteLuau = "execute_luau";
+    public const string AnimationConfigure = "animation_configure";
+    public const string AnimationBind = "animation_bind";
+    public const string AnimationMarkerAdd = "animation_marker_add";
+    public const string SequenceApply = "sequence_apply";
+    public const string OutputRead = "output_read";
+    public const string PlaytestInspect = "playtest_inspect";
 
     public static readonly HashSet<string> Allowlist = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -129,7 +135,13 @@ public static class RobloxBridgeOperations
         InsertAsset,
         ImportLocalModel,
         PublishPlace,
-        ExecuteLuau
+        ExecuteLuau,
+        AnimationConfigure,
+        AnimationBind,
+        AnimationMarkerAdd,
+        SequenceApply,
+        OutputRead,
+        PlaytestInspect
     };
 
     /// <summary>Ops allowed inside <see cref="Batch"/> (batch itself excluded).</summary>

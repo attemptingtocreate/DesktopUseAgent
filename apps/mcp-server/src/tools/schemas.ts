@@ -2,6 +2,21 @@ import { z } from "zod";
 
 const emptyParams = z.object({}).strict();
 
+/** Shared, intentionally application-neutral format for generated animation work. */
+const animationSpecSchema = z.object({
+  name: z.string().min(1), rig: z.string().min(1).optional(), fps: z.number().int().min(1).max(240),
+  duration: z.number().positive().max(600), loop: z.boolean().optional(), priority: z.string().optional(),
+  interpolation: z.enum(["CONSTANT", "LINEAR", "BEZIER"]).optional(), rootMotion: z.enum(["allow", "lock", "extract"]).optional(),
+  poses: z.array(z.object({ time: z.number().nonnegative().optional(), frame: z.number().positive().optional(), bones: z.array(z.object({ name: z.string().min(1), location: z.array(z.number()).length(3).optional(), rotation: z.array(z.number()).length(3).optional(), rotationMode: z.enum(["XYZ", "QUATERNION"]).optional(), scale: z.array(z.number()).length(3).optional() }).strict()).min(1) }).strict()).max(1000).optional(),
+  markers: z.array(z.object({ name: z.string().min(1), time: z.number().nonnegative() }).strict()).max(128).optional(),
+  requirements: z.array(z.string().min(1)).max(64).optional(),
+}).strict();
+
+const sequenceSpecSchema = z.object({
+  name: z.string().min(1), duration: z.number().positive().max(600),
+  tracks: z.array(z.object({ target: z.string().min(1), kind: z.enum(["animation", "camera", "tween", "vfx", "sound", "ui", "visibility", "callback"]), events: z.array(z.object({ time: z.number().nonnegative(), action: z.string().min(1), params: z.record(z.unknown()).optional() }).strict()).min(1) }).strict()).min(1).max(128),
+}).strict();
+
 export const uiFindSelectorSchema = z
   .object({
     name: z.string().optional(),
@@ -864,6 +879,10 @@ export const toolSchemas = {
       windowId: z.string().optional(),
     })
     .strict(),
+  "blender.animation_apply": z.object({ armature: z.string().min(1), spec: animationSpecSchema, sessionId: z.string().optional(), timeoutSeconds: z.number().int().positive().max(180).optional() }).strict(),
+  "blender.animation_inspect": z.object({ armature: z.string().min(1).optional(), sessionId: z.string().optional(), timeoutSeconds: z.number().int().positive().max(120).optional() }).strict(),
+  "blender.animation_preview": z.object({ output: z.string().min(1), frame: z.number().int().positive().optional(), overwrite: z.boolean().optional(), sessionId: z.string().optional(), timeoutSeconds: z.number().int().positive().max(180).optional() }).strict(),
+  "blender.asset_validate": z.object({ armature: z.string().min(1).optional(), requiredBones: z.array(z.string().min(1)).max(256).optional(), output: z.string().optional(), sessionId: z.string().optional(), timeoutSeconds: z.number().int().positive().max(120).optional() }).strict(),
   "vscode.open_file": z
     .object({
       path: z.string().optional(),
@@ -1202,6 +1221,12 @@ export const toolSchemas = {
       timeoutSeconds: z.number().int().positive().max(180).optional(),
     })
     .strict(),
+  "roblox.animation_configure": z.object({ animationId: z.string().min(1), assetId: z.string().min(1).optional(), priority: z.string().optional(), looped: z.boolean().optional(), sessionId: z.string().optional(), timeoutSeconds: z.number().int().positive().max(180).optional() }).strict(),
+  "roblox.animation_bind": z.object({ animatorId: z.string().min(1), animationId: z.string().min(1), markerCallbacks: z.array(z.object({ marker: z.string().min(1), callback: z.string().min(1) }).strict()).optional(), sessionId: z.string().optional(), timeoutSeconds: z.number().int().positive().max(180).optional() }).strict(),
+  "roblox.animation_marker_add": z.object({ animationId: z.string().min(1), name: z.string().min(1), time: z.number().nonnegative(), sessionId: z.string().optional(), timeoutSeconds: z.number().int().positive().max(180).optional() }).strict(),
+  "roblox.sequence_apply": z.object({ spec: sequenceSpecSchema, sessionId: z.string().optional(), timeoutSeconds: z.number().int().positive().max(180).optional() }).strict(),
+  "roblox.output_read": z.object({ maxLines: z.number().int().positive().max(500).optional(), sessionId: z.string().optional(), timeoutSeconds: z.number().int().positive().max(120).optional() }).strict(),
+  "roblox.playtest_inspect": z.object({ sessionId: z.string().optional(), timeoutSeconds: z.number().int().positive().max(120).optional() }).strict(),
   "input.mouse_move": z
     .object({
       x: z.number().int(),
@@ -1436,6 +1461,10 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   "blender.material_set": "Assign/create a Principled BSDF material with base color/roughness/metallic.",
   "blender.uv_unwrap": "UV unwrap (ANGLE_BASED, CONFORMAL, or SMART).",
   "blender.select_geometry": "Select verts/edges/faces by indices (or selectAll) on a named mesh.",
+  "blender.animation_apply": "Compile a typed declarative skeletal animation into a Blender Action in one semantic batch.",
+  "blender.animation_inspect": "Inspect an armature, its action, frame range, bones, and timeline markers.",
+  "blender.animation_preview": "Seek deterministically and render a QA preview frame from Blender.",
+  "blender.asset_validate": "Machine-check required bones and exported-asset existence before handoff.",
   "vscode.open_file": "Open a file in VS Code via the code CLI.",
   "vscode.open_folder": "Open a folder/workspace in VS Code via the code CLI.",
   "vscode.execute_command": "Attempt a VS Code CLI --command invocation.",
@@ -1475,6 +1504,12 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   "roblox.import_local_model": "Import a local .rbxm/.rbxmx via InsertService:LoadLocalAsset (not FBX).",
   "roblox.publish_place": "Best-effort publish/prompt-publish (requires confirm=true).",
   "roblox.execute_luau": "Gated edge-case Luau exec (confirm=true, max 16KB). Prefer structured tools.",
+  "roblox.animation_configure": "Configure a Roblox Animation reference, priority, and looping metadata.",
+  "roblox.animation_bind": "Bind an animation to an Animator and declare marker-driven callback names.",
+  "roblox.animation_marker_add": "Register a named animation event in centralized animation metadata.",
+  "roblox.sequence_apply": "Compile a typed cinematic sequence into a reusable Studio sequence controller.",
+  "roblox.output_read": "Read bounded Studio bridge diagnostics for playtest validation.",
+  "roblox.playtest_inspect": "Inspect playtest state and runtime diagnostics without relying on sleeps.",
   "input.mouse_move": "Fallback: move the mouse to physical screen coordinates (DPI/virtual-desktop aware).",
   "input.mouse_click": "Fallback: click at physical screen coordinates via SendInput.",
   "input.mouse_drag": "Fallback: drag between physical screen coordinates via SendInput.",

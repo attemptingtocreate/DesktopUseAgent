@@ -56,7 +56,9 @@ public sealed class BlenderAdapter : IApplicationAdapter
                 CommandNames.BlenderModifierArray,
                 CommandNames.BlenderMaterialSet,
                 CommandNames.BlenderUvUnwrap,
-                CommandNames.BlenderSelectGeometry
+                CommandNames.BlenderSelectGeometry,
+                CommandNames.BlenderAnimationApply, CommandNames.BlenderAnimationInspect,
+                CommandNames.BlenderAnimationPreview, CommandNames.BlenderAssetValidate
             },
             Meta = new Dictionary<string, object?>
             {
@@ -105,6 +107,10 @@ public sealed class BlenderAdapter : IApplicationAdapter
             CommandNames.BlenderMaterialSet => await MaterialSetAsync(command, cancellationToken).ConfigureAwait(false),
             CommandNames.BlenderUvUnwrap => await UvUnwrapAsync(command, cancellationToken).ConfigureAwait(false),
             CommandNames.BlenderSelectGeometry => await SelectGeometryAsync(command, cancellationToken).ConfigureAwait(false),
+            CommandNames.BlenderAnimationApply => await ExecuteLiveAsync(BlenderBridgeOperations.AnimationApply, command.Params, command, cancellationToken).ConfigureAwait(false),
+            CommandNames.BlenderAnimationInspect => await ExecuteLiveAsync(BlenderBridgeOperations.AnimationInspect, command.Params, command, cancellationToken).ConfigureAwait(false),
+            CommandNames.BlenderAnimationPreview => await ExecuteLiveAsync(BlenderBridgeOperations.AnimationPreview, command.Params, command, cancellationToken).ConfigureAwait(false),
+            CommandNames.BlenderAssetValidate => await ExecuteLiveAsync(BlenderBridgeOperations.AssetValidate, command.Params, command, cancellationToken).ConfigureAwait(false),
             _ => AdapterResult.Fail(ErrorCodes.Unsupported, $"Unknown blender action '{command.Action}'.")
         };
     }
