@@ -100,6 +100,10 @@ const EXPECTED_TOOLS = [
   "blender.material_set",
   "blender.uv_unwrap",
   "blender.select_geometry",
+  "blender.animation_apply",
+  "blender.animation_inspect",
+  "blender.animation_preview",
+  "blender.asset_validate",
   "vscode.open_file",
   "vscode.open_folder",
   "vscode.execute_command",
@@ -139,6 +143,12 @@ const EXPECTED_TOOLS = [
   "roblox.import_local_model",
   "roblox.publish_place",
   "roblox.execute_luau",
+  "roblox.animation_configure",
+  "roblox.animation_bind",
+  "roblox.animation_marker_add",
+  "roblox.sequence_apply",
+  "roblox.output_read",
+  "roblox.playtest_inspect",
   "input.mouse_move",
   "input.mouse_click",
   "input.mouse_drag",
@@ -192,7 +202,16 @@ describe("tool registry", () => {
 
   it("forwards underscored and dotted tool calls to dotted agent methods", async () => {
     const client = new AgentClient({ pipeName: "unused" });
-    client.send = vi.fn(async () => ({ ok: true, data: {} }));
+    client.send = vi.fn(async () => ({
+      ok: true,
+      data: {},
+      meta: {
+        requestId: "request-1",
+        startedAt: "2026-09-21T12:00:00Z",
+        completedAt: "2026-09-21T12:00:00Z",
+        durationMs: 0,
+      },
+    }));
 
     const { server } = createServer({ client });
     const registeredTools = (
@@ -284,5 +303,46 @@ describe("tool registry", () => {
         expect(tool.annotations).toEqual(meta.annotations);
       }
     }
+  });
+
+  it("registers an output schema on every tool alias", () => {
+    const client = new AgentClient({ pipeName: "unused" });
+    const { server } = createServer({ client });
+    const registeredTools = (
+      server as unknown as {
+        _registeredTools: Record<string, { outputSchema?: unknown }>;
+      }
+    )._registeredTools;
+
+    for (const name of listRegisteredMcpToolNames()) {
+      expect(registeredTools[name]?.outputSchema).toBeDefined();
+    }
+  });
+
+  it("returns the agent envelope as MCP structured content", async () => {
+    const response = {
+      ok: true,
+      data: { windows: [] },
+      meta: {
+        requestId: "request-1",
+        startedAt: "2026-09-21T12:00:00Z",
+        completedAt: "2026-09-21T12:00:00Z",
+        durationMs: 0,
+      },
+    };
+    const client = new AgentClient({ pipeName: "unused" });
+    client.send = vi.fn(async () => response);
+
+    const { server } = createServer({ client });
+    const tool = (
+      server as unknown as {
+        _registeredTools: Record<string, { handler: (args: unknown) => Promise<unknown> }>;
+      }
+    )._registeredTools["desktop_get_state"]!;
+
+    await expect(tool.handler({})).resolves.toMatchObject({
+      structuredContent: response,
+      content: [{ type: "text", text: JSON.stringify(response) }],
+    });
   });
 });
