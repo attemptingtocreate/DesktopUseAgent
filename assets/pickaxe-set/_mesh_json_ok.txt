@@ -1,0 +1,4 @@
+C:\Users\Administrator\Desktop\DesktopUseAgent\assets\pickaxe-set\RollButtonSystem.mesh.json	31803
+C:\Users\Administrator\Desktop\DesktopUseAgent\assets\pickaxe-set\SideButton.mesh.json	1962
+C:\Users\Administrator\Desktop\DesktopUseAgent\assets\pickaxe-set\PickaxePedestal.mesh.json	2602
+C:\Users\Administrator\Desktop\DesktopUseAgent\assets\pickaxe-set\OreSimple.mesh.json	1556

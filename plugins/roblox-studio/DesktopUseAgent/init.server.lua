@@ -786,23 +786,210 @@ local function executeSingle(operation, params)
 	end
 
 	if operation == "playtest_start" then
-		local ok, err = pcall(function()
-			plugin:StartPlaySolo()
-		end)
-		if not ok then
-			return { ok = false, error = tostring(err) }
+		-- plugin:StartPlaySolo / StopPlaySolo were removed from the Plugin API.
+		-- Prefer agent-side: focus Studio window, then SendInput F5 (start) / Shift+F5 (stop).
+		local tried = {}
+		local function tryCall(label, fn)
+			local ok, err = pcall(fn)
+			table.insert(tried, { method = label, ok = ok, error = ok and nil or tostring(err) })
+			return ok
 		end
-		return { ok = true, data = { running = true } }
+		if typeof(plugin.StartPlaySolo) == "function" then
+			if tryCall("plugin:StartPlaySolo", function()
+				plugin:StartPlaySolo()
+			end) then
+				return { ok = true, data = { running = true, method = "plugin:StartPlaySolo" } }
+			end
+		end
+		-- Some Studio builds expose Run via TestService / undocumented helpers — probe safely.
+		local TestService = game:GetService("TestService")
+		if TestService and typeof(TestService.DoCommand) == "function" then
+			if tryCall("TestService:DoCommand(run)", function()
+				TestService:DoCommand("run")
+			end) then
+				return { ok = true, data = { running = true, method = "TestService:DoCommand(run)", tried = tried } }
+			end
+		end
+		return {
+			ok = false,
+			error = "playtest_hotkey_required",
+			message = "StartPlaySolo unavailable on this Studio. Focus the Studio window and press F5 (Play) or use Shift+F5 to stop.",
+			data = { tried = tried, hint = "F5" },
+		}
 	end
 
 	if operation == "playtest_stop" then
-		local ok, err = pcall(function()
-			plugin:StopPlaySolo()
-		end)
-		if not ok then
-			return { ok = false, error = tostring(err) }
+		local tried = {}
+		local function tryCall(label, fn)
+			local ok, err = pcall(fn)
+			table.insert(tried, { method = label, ok = ok, error = ok and nil or tostring(err) })
+			return ok
 		end
-		return { ok = true, data = { running = false } }
+		if typeof(plugin.StopPlaySolo) == "function" then
+			if tryCall("plugin:StopPlaySolo", function()
+				plugin:StopPlaySolo()
+			end) then
+				return { ok = true, data = { running = false, method = "plugin:StopPlaySolo" } }
+			end
+		end
+		local TestService = game:GetService("TestService")
+		if TestService and typeof(TestService.DoCommand) == "function" then
+			if tryCall("TestService:DoCommand(stop)", function()
+				TestService:DoCommand("stop")
+			end) then
+				return { ok = true, data = { running = false, method = "TestService:DoCommand(stop)", tried = tried } }
+			end
+		end
+		return {
+			ok = false,
+			error = "playtest_hotkey_required",
+			message = "StopPlaySolo unavailable on this Studio. Focus the Studio window and press Shift+F5.",
+			data = { tried = tried, hint = "Shift+F5" },
+		}
+	end
+
+	-- Import local FBX/OBJ/glTF via AssetImportService (plugin-context).
+	-- NOTE: On current Studio, AssetImportService is often nil / RobloxScriptSecurity-only
+	-- for third-party plugins. When unavailable, use Studio UI File > Import 3D, or enable
+	-- Game Settings > Security > Allow Mesh / Image APIs and rely on EditableMesh client rebuild.
+	if operation == "import_fbx" or operation == "import_mesh_file" then
+		local path = params.path or params.file
+		if type(path) ~= "string" or path == "" then
+			return { ok = false, error = "path_required" }
+		end
+		local lower = string.lower(path)
+		local okExt = string.sub(lower, -4) == ".fbx"
+			or string.sub(lower, -4) == ".obj"
+			or string.sub(lower, -4) == ".gltf"
+			or string.sub(lower, -4) == ".glb"
+		if not okExt then
+			return { ok = false, error = "path_must_be_fbx_obj_gltf_glb" }
+		end
+		local parent
+		if (type(params.parentId) == "string" and params.parentId ~= "")
+			or (type(params.parentPath) == "string" and params.parentPath ~= "") then
+			local resolved, parentErr = resolveParent(params)
+			if not resolved then
+				return { ok = false, error = parentErr }
+			end
+			parent = resolved
+		else
+			parent = game:GetService("ServerStorage")
+		end
+		if isForbiddenParent(parent) then
+			return { ok = false, error = "forbidden_parent" }
+		end
+		local okSvc, assetImport = pcall(function()
+			return game:GetService("AssetImportService")
+		end)
+		if not okSvc or assetImport == nil then
+			return {
+				ok = false,
+				error = "asset_import_service_unavailable",
+				message = "AssetImportService is nil/RobloxScriptSecurity in this plugin context. Import via Studio File > Import 3D, or enable Allow Mesh / Image APIs for EditableMesh Play fallback.",
+			}
+		end
+		ChangeHistoryService:SetWaypoint("DesktopUseAgent import_fbx")
+		local session
+		local okStart, sessOrErr = pcall(function()
+			if typeof(assetImport.StartSessionWithPathAsync) == "function" then
+				return assetImport:StartSessionWithPathAsync(path)
+			end
+			return assetImport:StartSessionWithPath(path)
+		end)
+		if not okStart or sessOrErr == nil then
+			return { ok = false, error = "start_session_failed", message = tostring(sessOrErr) }
+		end
+		session = sessOrErr
+		local importedRoot = nil
+		local okTree, treeOrErr = pcall(function()
+			if typeof(session.GetPlaceholderInstanceTree) == "function" then
+				return session:GetPlaceholderInstanceTree()
+			end
+			if typeof(session.GetImportTree) == "function" then
+				return session:GetImportTree()
+			end
+			return nil
+		end)
+		if okTree and typeof(treeOrErr) == "Instance" then
+			importedRoot = treeOrErr:Clone()
+		end
+		-- Upload creates cloud MeshIds when local placeholder tree is unavailable.
+		if importedRoot == nil and typeof(session.Upload) == "function" then
+			local uploadDone = false
+			local uploadOk = false
+			local uploadResults = nil
+			local conn
+			if typeof(session.UploadComplete) == "RBXScriptSignal" or session.UploadComplete then
+				conn = session.UploadComplete:Connect(function(results)
+					uploadDone = true
+					uploadOk = true
+					uploadResults = results
+				end)
+			end
+			local okUp, upErr = pcall(function()
+				session:Upload()
+			end)
+			if not okUp then
+				if conn then
+					conn:Disconnect()
+				end
+				return { ok = false, error = "upload_failed", message = tostring(upErr) }
+			end
+			local t0 = os.clock()
+			while not uploadDone and (os.clock() - t0) < 120 do
+				task.wait(0.2)
+			end
+			if conn then
+				conn:Disconnect()
+			end
+			return {
+				ok = uploadOk,
+				error = uploadOk and nil or "upload_timeout_or_failed",
+				data = {
+					path = path,
+					uploadResults = uploadResults and tostring(uploadResults) or nil,
+					note = "Upload completed; insert resulting MeshParts from Toolbox/inventory if not parented automatically.",
+				},
+			}
+		end
+		if importedRoot == nil then
+			return {
+				ok = false,
+				error = "no_import_tree",
+				message = "Session started but GetPlaceholderInstanceTree/GetImportTree returned nothing (likely security-restricted).",
+			}
+		end
+		if type(params.name) == "string" and params.name ~= "" then
+			importedRoot.Name = params.name
+		end
+		importedRoot.Parent = parent
+		local meshParts = {}
+		for _, d in ipairs(importedRoot:GetDescendants()) do
+			if d:IsA("MeshPart") then
+				local mid = ""
+				pcall(function()
+					mid = tostring(d.MeshId)
+				end)
+				table.insert(meshParts, { name = d.Name, meshId = mid, path = d:GetFullName() })
+			end
+		end
+		if importedRoot:IsA("MeshPart") then
+			local mid = ""
+			pcall(function()
+				mid = tostring(importedRoot.MeshId)
+			end)
+			table.insert(meshParts, { name = importedRoot.Name, meshId = mid, path = importedRoot:GetFullName() })
+		end
+		ChangeHistoryService:SetWaypoint("DesktopUseAgent after import_fbx")
+		return {
+			ok = true,
+			data = {
+				path = path,
+				root = describeInstance(importedRoot),
+				meshParts = meshParts,
+			},
+		}
 	end
 
 	if operation == "terrain_fill_block" then
@@ -1119,8 +1306,8 @@ task.spawn(function()
 	end
 end)
 
-enableButton.Click:Connect(function()
-	pollingEnabled = not pollingEnabled
+local function setPollingEnabled(enabled)
+	pollingEnabled = enabled
 	enableButton:SetActive(pollingEnabled)
 	if pollingEnabled then
 		resetInstanceMap()
@@ -1145,6 +1332,18 @@ enableButton.Click:Connect(function()
 			})
 		end)
 	end
+end
+
+enableButton.Click:Connect(function()
+	setPollingEnabled(not pollingEnabled)
 end)
 
-print("[DesktopUseAgent] Plugin loaded. Enable bridge polling from the toolbar when ready.")
+-- Auto-enable on load so agents can connect without a ribbon click.
+task.defer(function()
+	if config.token and config.token ~= "" then
+		setPollingEnabled(true)
+		print("[DesktopUseAgent] Plugin loaded; bridge polling auto-enabled.")
+	else
+		print("[DesktopUseAgent] Plugin loaded. Enable bridge polling from the toolbar when ready.")
+	end
+end)
